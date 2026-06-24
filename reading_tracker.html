@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>閱覽數據儀表板</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@300;400;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+:root {
+  --ink:#1a1a2e; --ink-mid:#2d2d4e;
+  --paper:#f5f0e8; --paper-dark:#ede8dc;
+  --accent:#c84b31; --accent-soft:#e8856e;
+  --gold:#b8963e; --gold-light:#d4b060;
+  --teal:#2a7f7f; --teal-light:#4aafaf;
+  --muted:#7a7a9a; --border:rgba(26,26,46,0.15);
+  --shadow:0 4px 24px rgba(26,26,46,0.12);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Noto Serif TC',serif;background:var(--paper);color:var(--ink);min-height:100vh;}
+
+header{background:var(--ink);color:var(--paper);padding:1.6rem 2.5rem 1.2rem;border-bottom:4px solid var(--accent);display:flex;align-items:flex-end;gap:2rem;flex-wrap:wrap;}
+header .title-block{flex:1;min-width:200px;}
+header h1{font-family:'Space Mono',monospace;font-size:1.5rem;letter-spacing:-0.02em;line-height:1.1;}
+header h1 span{color:var(--gold-light);}
+header .subtitle{font-size:0.75rem;color:var(--muted);margin-top:0.3rem;font-family:'Space Mono',monospace;}
+.header-stats{display:flex;gap:1.8rem;flex-wrap:wrap;}
+.h-stat{text-align:right;}
+.h-stat .val{font-family:'Space Mono',monospace;font-size:1.4rem;font-weight:700;color:var(--gold-light);}
+.h-stat .lbl{font-size:0.68rem;color:var(--muted);}
+
+nav{background:var(--ink-mid);display:flex;gap:0;border-bottom:2px solid var(--accent);overflow-x:auto;}
+nav button{font-family:'Noto Serif TC',serif;font-size:0.83rem;padding:0.7rem 1.3rem;background:none;border:none;color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;white-space:nowrap;transition:all 0.2s;}
+nav button:hover{color:var(--paper);}
+nav button.active{color:var(--gold-light);border-bottom-color:var(--gold-light);}
+
+main{max-width:1400px;margin:0 auto;padding:1.8rem 2rem 4rem;}
+.panel{display:none;}
+.panel.active{display:block;}
+
+.card{background:white;border:1px solid var(--border);border-radius:2px;padding:1.4rem;box-shadow:var(--shadow);margin-bottom:1.4rem;}
+.card-title{font-family:'Space Mono',monospace;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted);margin-bottom:1rem;padding-bottom:0.5rem;border-bottom:1px solid var(--border);}
+
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1.4rem;}
+@media(max-width:900px){.grid-2{grid-template-columns:1fr;}}
+
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:1rem;margin-bottom:1.4rem;}
+.stat-card{background:var(--ink);color:var(--paper);padding:1.1rem 1rem;border-radius:2px;border-left:4px solid var(--accent);}
+.stat-card.gold{border-left-color:var(--gold);}
+.stat-card.teal{border-left-color:var(--teal-light);}
+.stat-card.purple{border-left-color:#5c6bc0;}
+.stat-card .num{font-family:'Space Mono',monospace;font-size:1.35rem;font-weight:700;color:var(--gold-light);}
+.stat-card .desc{font-size:0.7rem;color:var(--muted);margin-top:0.2rem;}
+
+.chart-wrap{position:relative;height:360px;}
+
+.table-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:0.82rem;}
+th{font-family:'Space Mono',monospace;font-size:0.63rem;text-transform:uppercase;letter-spacing:0.1em;text-align:left;padding:0.5rem 0.75rem;background:var(--paper-dark);border-bottom:2px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none;}
+th:hover{background:#ddd8ce;}
+td{padding:0.55rem 0.75rem;border-bottom:1px solid var(--border);}
+tr:hover td{background:var(--paper);}
+.badge{display:inline-block;font-family:'Space Mono',monospace;font-size:0.63rem;padding:0.1rem 0.4rem;border-radius:2px;background:var(--paper-dark);color:var(--muted);}
+.badge.up{background:#d4edda;color:#1a5c2e;}
+.badge.down{background:#fde8e4;color:var(--accent);}
+.num-cell{font-family:'Space Mono',monospace;text-align:right;}
+
+.pills-row{display:flex;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.75rem;}
+.pill{font-size:0.74rem;padding:0.28rem 0.7rem;border:1.5px solid var(--border);border-radius:99px;background:none;cursor:pointer;font-family:'Noto Serif TC',serif;transition:all 0.15s;}
+.pill.active{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+.pill.series-pill{border-radius:4px;}
+
+/* DATE PICKER */
+.year-btn-row{display:flex;gap:0.3rem;flex-wrap:wrap;margin-bottom:0.5rem;}
+.year-btn,.month-btn{font-family:'Space Mono',monospace;font-size:0.72rem;padding:0.3rem 0.65rem;border:1.5px solid var(--border);border-radius:2px;cursor:pointer;background:none;transition:all 0.15s;}
+.year-btn.active,.month-btn.active{background:var(--ink);color:var(--paper);border-color:var(--ink);}
+.year-btn:hover,.month-btn.has-snap:hover{border-color:var(--teal);}
+.month-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:0.3rem;margin-bottom:0.5rem;}
+.month-btn.no-snap{opacity:0.25;cursor:default;}
+.snap-found{font-family:'Space Mono',monospace;font-size:0.73rem;color:var(--teal);}
+.snap-missing{font-family:'Space Mono',monospace;font-size:0.73rem;color:var(--muted);}
+
+/* TREND */
+.trend-ctrl{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;}
+.trend-range-btns{display:flex;gap:0.3rem;}
+.trend-range-btn{font-family:'Space Mono',monospace;font-size:0.7rem;padding:0.3rem 0.6rem;border:1.5px solid var(--border);border-radius:2px;cursor:pointer;background:none;}
+.trend-range-btn.active{background:var(--teal);color:white;border-color:var(--teal);}
+.trend-nav{display:flex;gap:0.4rem;align-items:center;}
+.trend-nav button{font-family:'Space Mono',monospace;font-size:0.75rem;padding:0.3rem 0.7rem;border:1.5px solid var(--border);border-radius:2px;cursor:pointer;background:none;}
+.trend-nav button:hover{background:var(--ink);color:var(--paper);}
+.trend-nav .pos-label{font-family:'Space Mono',monospace;font-size:0.7rem;color:var(--muted);min-width:160px;text-align:center;}
+
+/* SERIES */
+.series-overview{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem;margin-bottom:1.4rem;}
+.series-block{border:1px solid var(--border);border-radius:2px;overflow:hidden;}
+.series-block-head{padding:0.6rem 1rem;font-weight:600;font-size:0.85rem;color:white;display:flex;justify-content:space-between;align-items:center;}
+.series-block-body{padding:0.8rem 1rem;background:white;}
+.series-block-body .snum{font-family:'Space Mono',monospace;font-size:1.2rem;font-weight:700;}
+.series-block-body .smeta{font-size:0.72rem;color:var(--muted);margin-top:0.2rem;}
+.series-works{font-size:0.73rem;color:var(--muted);margin-top:0.5rem;line-height:1.5;}
+
+/* FORMS */
+.form-group{margin-bottom:0.9rem;}
+label{font-size:0.78rem;color:var(--muted);display:block;margin-bottom:0.25rem;}
+input,select,textarea{width:100%;padding:0.45rem 0.7rem;border:1.5px solid var(--border);border-radius:2px;font-family:'Noto Serif TC',serif;font-size:0.84rem;background:var(--paper);color:var(--ink);outline:none;transition:border-color 0.2s;}
+input:focus,select:focus,textarea:focus{border-color:var(--teal);}
+textarea{resize:vertical;min-height:120px;font-family:'Space Mono',monospace;font-size:0.73rem;}
+
+.btn{font-family:'Space Mono',monospace;font-size:0.75rem;padding:0.45rem 1.1rem;border:2px solid currentColor;border-radius:2px;cursor:pointer;background:none;transition:all 0.15s;text-transform:uppercase;letter-spacing:0.07em;}
+.btn-primary{color:var(--ink);border-color:var(--ink);}
+.btn-primary:hover{background:var(--ink);color:var(--paper);}
+.btn-accent{color:var(--accent);border-color:var(--accent);}
+.btn-accent:hover{background:var(--accent);color:white;}
+.btn-gold{color:var(--gold);border-color:var(--gold);}
+.btn-gold:hover{background:var(--gold);color:white;}
+.btn-teal{color:var(--teal);border-color:var(--teal);}
+.btn-teal:hover{background:var(--teal);color:white;}
+.btn-purple{color:#5c6bc0;border-color:#5c6bc0;}
+.btn-purple:hover{background:#5c6bc0;color:white;}
+.btn-sm{padding:0.25rem 0.6rem;font-size:0.68rem;}
+.btn-row{display:flex;gap:0.6rem;flex-wrap:wrap;margin-top:0.7rem;}
+
+.edit-area{display:grid;grid-template-columns:1fr 2fr;gap:1.4rem;align-items:start;}
+@media(max-width:700px){.edit-area{grid-template-columns:1fr;}}
+.works-list{display:flex;flex-direction:column;gap:0.4rem;}
+.work-item{display:flex;justify-content:space-between;align-items:center;padding:0.55rem 0.75rem;background:var(--paper);border:1px solid var(--border);border-radius:2px;font-size:0.8rem;}
+.work-item .wname{font-weight:600;}
+.work-item .winfo{font-size:0.68rem;color:var(--muted);}
+.del-btn{color:var(--accent);border:none;background:none;cursor:pointer;font-size:1rem;padding:0 0.25rem;flex-shrink:0;}
+
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:5px;flex-shrink:0;vertical-align:middle;}
+.sdot{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:5px;vertical-align:middle;}
+
+.notice{background:var(--paper-dark);border-left:4px solid var(--gold);padding:0.7rem 1rem;font-size:0.8rem;color:var(--muted);margin-bottom:1rem;}
+.section-sep{border:none;border-top:1px solid var(--border);margin:1.2rem 0;}
+.growth-bar-wrap{display:flex;align-items:center;gap:0.5rem;}
+.growth-bar{height:5px;background:var(--teal-light);border-radius:3px;min-width:2px;}
+.growth-bar.neg{background:var(--accent-soft);}
+
+/* SWATCH */
+.swatch-row{display:flex;gap:0.4rem;flex-wrap:wrap;margin-top:0.3rem;}
+.swatch{width:20px;height:20px;border-radius:2px;cursor:pointer;border:2px solid transparent;transition:border-color 0.15s;flex-shrink:0;}
+.swatch.selected{border-color:var(--ink);}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem;}
+.modal{background:var(--paper);border:1px solid var(--border);border-radius:2px;box-shadow:0 8px 48px rgba(0,0,0,0.3);padding:1.8rem;max-width:600px;width:100%;max-height:85vh;overflow-y:auto;}
+.modal h2{font-family:'Space Mono',monospace;font-size:0.9rem;margin-bottom:0.3rem;}
+.modal .mdesc{font-size:0.8rem;color:var(--muted);margin-bottom:1rem;}
+.modal textarea{min-height:240px;font-size:0.7rem;}
+.hidden{display:none!important;}
+
+/* EXPORT */
+.export-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem;}
+.export-card{border:1.5px solid var(--border);border-radius:2px;padding:1.2rem;text-align:center;cursor:pointer;transition:all 0.2s;background:white;}
+.export-card:hover{border-color:var(--teal);background:#f0f8f8;}
+.export-card .icon{font-size:1.8rem;margin-bottom:0.5rem;}
+.export-card .ename{font-family:'Space Mono',monospace;font-size:0.76rem;font-weight:700;}
+.export-card .edesc{font-size:0.7rem;color:var(--muted);margin-top:0.25rem;}
+
+.import-drop{border:2px dashed var(--border);border-radius:2px;padding:2rem;text-align:center;cursor:pointer;transition:border-color 0.2s;}
+.import-drop:hover,.import-drop.drag-over{border-color:var(--teal);}
+.import-drop p{font-size:0.82rem;color:var(--muted);}
+
+.snap-input-grid{display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;margin-bottom:0.75rem;}
+
+/* TOAST */
+.toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);font-family:'Space Mono',monospace;font-size:0.78rem;padding:0.6rem 1.4rem;border-radius:2px;box-shadow:var(--shadow);opacity:0;transition:opacity 0.3s;pointer-events:none;z-index:9999;}
+.toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title-block">
+    <h1>閱覽數據 <span>DASHBOARD</span></h1>
+    <div class="subtitle">Writing Analytics Tracker</div>
+  </div>
+  <div class="header-stats" id="headerStats"></div>
+</header>
+
+<nav>
+  <button class="active" data-tab="overview">總覽</button>
+  <button data-tab="trend">趨勢圖</button>
+  <button data-tab="comparison">比較</button>
+  <button data-tab="series">系列統計</button>
+  <button data-tab="table">數據表</button>
+  <button data-tab="edit">編輯資料</button>
+  <button data-tab="exportimport">匯出 / 匯入</button>
+</nav>
+
+<main>
+
+<!-- OVERVIEW -->
+<div class="panel active" id="tab-overview">
+  <div class="stat-grid" id="overviewStats"></div>
+  <div class="card">
+    <div class="card-title">系列閱讀概覽</div>
+    <div class="series-overview" id="overviewSeriesBlocks"></div>
+  </div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">各作品最新閱讀數</div>
+      <div class="chart-wrap"><canvas id="chartBar"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">各作品佔比</div>
+      <div class="chart-wrap"><canvas id="chartDoughnut"></canvas></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">上期增減排行</div>
+    <div class="table-wrap" id="growthTable"></div>
+  </div>
+</div>
+
+<!-- TREND -->
+<div class="panel" id="tab-trend">
+  <div class="card">
+    <div class="card-title">系列篩選</div>
+    <div class="pills-row" id="trendSeriesPills"></div>
+    <div class="card-title" style="margin-top:0.5rem">作品選擇</div>
+    <div class="pills-row" id="trendWorkPills"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">時間範圍</div>
+    <div class="trend-ctrl">
+      <div class="trend-range-btns" id="trendRangeBtns">
+        <button class="trend-range-btn" data-months="3">3個月</button>
+        <button class="trend-range-btn active" data-months="12">1年</button>
+        <button class="trend-range-btn" data-months="24">2年</button>
+        <button class="trend-range-btn" data-months="0">全部</button>
+      </div>
+      <div class="trend-nav">
+        <button onclick="trendShift(-1)">◀ 往前</button>
+        <span class="pos-label" id="trendPosLabel"></span>
+        <button onclick="trendShift(1)">往後 ▶</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">閱讀數趨勢</div>
+    <div class="chart-wrap" style="height:420px"><canvas id="chartTrend"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">單期增減量</div>
+    <div class="chart-wrap"><canvas id="chartDelta"></canvas></div>
+  </div>
+</div>
+
+<!-- COMPARISON -->
+<div class="panel" id="tab-comparison">
+  <div class="notice">選取兩個快照日期，比較閱讀成長。</div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">起始快照</div>
+      <div id="cmpFromPicker"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">結束快照</div>
+      <div id="cmpToPicker"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="chart-wrap"><canvas id="chartCmp"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">成長率詳細</div>
+    <div class="table-wrap" id="cmpTable"></div>
+  </div>
+</div>
+
+<!-- SERIES -->
+<div class="panel" id="tab-series">
+  <div class="card">
+    <div class="card-title">系列趨勢圖</div>
+    <div class="pills-row" id="seriesChartPills"></div>
+    <div class="chart-wrap" style="height:400px"><canvas id="chartSeriesTrend"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">各系列詳細數據</div>
+    <div id="seriesDetailBlocks"></div>
+  </div>
+</div>
+
+<!-- TABLE -->
+<div class="panel" id="tab-table">
+  <div class="card">
+    <div class="card-title">選擇快照日期</div>
+    <div id="tblYearRow" class="year-btn-row"></div>
+    <div id="tblMonthGrid" class="month-grid"></div>
+    <div id="tblSnapInfo" class="snap-found"></div>
+  </div>
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.75rem">
+      <div class="card-title" style="margin:0;border:none;padding:0">快照數據</div>
+      <div class="pills-row" style="margin:0" id="tblSeriesFilter"></div>
+    </div>
+    <div class="table-wrap" id="dataTable"></div>
+  </div>
+</div>
+
+<!-- EDIT -->
+<div class="panel" id="tab-edit">
+  <div class="edit-area">
+    <div>
+      <div class="card">
+        <div class="card-title">系列管理</div>
+        <div class="form-group"><label>系列名稱</label><input id="newSeriesName" placeholder="例：藍月系列"></div>
+        <div class="form-group">
+          <label>顏色</label>
+          <div class="swatch-row" id="seriesSwatches"></div>
+          <input id="newSeriesColor" style="margin-top:0.4rem" placeholder="#2a7f7f">
+        </div>
+        <button class="btn btn-purple" onclick="addSeries()">＋ 新增系列</button>
+        <hr class="section-sep">
+        <div id="seriesList"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">新增作品</div>
+        <div class="form-group"><label>作品名稱</label><input id="newWorkName" placeholder="例：我的新小說"></div>
+        <div class="form-group"><label>簡介（可空）</label><input id="newWorkDesc" placeholder="BL/輕小說…"></div>
+        <div class="form-group"><label>隸屬系列</label><select id="newWorkSeries"></select></div>
+        <button class="btn btn-primary" onclick="addWork()">＋ 新增作品</button>
+        <hr class="section-sep">
+        <div class="works-list" id="worksList"></div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <div class="card-title">新增快照</div>
+        <div class="form-group"><label>快照日期（YYYY/MM/DD）</label><input id="newSnapDate" placeholder="2026/07/19"></div>
+        <div class="snap-input-grid" id="snapInputs"></div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="addSnapshot()">＋ 加入快照</button>
+          <button class="btn btn-gold" onclick="generateConstPrompt()">📋 產生 const 程式碼</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">刪除快照</div>
+        <div class="form-group"><label>選擇要刪除的快照</label><select id="deleteSnapSelect"></select></div>
+        <button class="btn btn-accent btn-sm" onclick="deleteSnapshot()">✕ 刪除此快照</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EXPORT/IMPORT -->
+<div class="panel" id="tab-exportimport">
+  <div class="card">
+    <div class="card-title">匯出資料</div>
+    <div class="export-grid">
+      <div class="export-card" onclick="exportJSON()"><div class="icon">📄</div><div class="ename">JSON</div><div class="edesc">完整資料備份（含系列）</div></div>
+      <div class="export-card" onclick="exportXLSX()"><div class="icon">📊</div><div class="ename">XLSX</div><div class="edesc">4個工作表（含系列）</div></div>
+      <div class="export-card" onclick="exportCSV()"><div class="icon">📃</div><div class="ename">CSV</div><div class="edesc">逗號分隔，UTF-8</div></div>
+      <div class="export-card" onclick="exportBlankTemplate()"><div class="icon">🗒️</div><div class="ename">空白範本</div><div class="edesc">保留作品設定，清空快照</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">匯入資料</div>
+    <div class="import-drop" id="importDrop" onclick="document.getElementById('importFile').click()">
+      <div style="font-size:2rem;margin-bottom:0.5rem">📥</div>
+      <p>點擊或拖曳 JSON 檔案至此處</p>
+      <p style="margin-top:0.3rem;font-size:0.7rem">支援本工具匯出的 JSON 格式</p>
+    </div>
+    <input type="file" id="importFile" accept=".json" class="hidden" onchange="handleImportFile(event)">
+    <hr class="section-sep">
+    <div class="form-group"><label>或直接貼入 JSON 文字</label><textarea id="jsonImport" placeholder='{"works":[...],"series":[...],"snapshots":[]}'></textarea></div>
+    <div class="btn-row">
+      <button class="btn btn-teal" onclick="importJsonText()">匯入 JSON</button>
+      <button class="btn btn-gold" onclick="showCurrentJson()">查看目前資料</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">重設</div>
+    <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem">重設為 HTML 內建的預設資料，清除所有本地修改。</p>
+    <button class="btn btn-accent" onclick="resetData()">⚠ 重設為預設資料</button>
+  </div>
+</div>
+
+</main>
+
+<!-- MODAL -->
+<div class="modal-overlay hidden" id="modalOverlay" onclick="closeModalClick(event)">
+  <div class="modal">
+    <h2 id="modalTitle"></h2>
+    <div class="mdesc" id="modalDesc"></div>
+    <textarea id="modalContent" readonly></textarea>
+    <div class="btn-row">
+      <button class="btn btn-teal" onclick="copyModalContent()">複製到剪貼簿</button>
+      <button class="btn btn-primary" onclick="document.getElementById('modalOverlay').classList.add('hidden')">關閉</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  ★ DEFAULT DATA — 修改這裡來預設資料
+// ═══════════════════════════════════════════════════════════
+const DEFAULT_DATA = {
+  series: [
+    { id: 's1',    name: '藍月系列', color: '#2a7f7f' },
+    { id: 's2',    name: '南都系列', color: '#b8963e' },
+    { id: 'other', name: '其他',     color: '#7a7a9a' },
+  ],
+  works: [
+    { id: 'w1',  name: '藍月傳說：水都的亡靈', desc: '長篇/輕小說',  seriesId: 's1' },
+    { id: 'w2',  name: '罪詠',                 desc: 'BL/父子前傳',  seriesId: 's1' },
+    { id: 'w3',  name: '初雪消融之夏',          desc: 'BG/N前傳',    seriesId: 's1' },
+    { id: 'w4',  name: '灰色日誌',              desc: '',            seriesId: 'other' },
+    { id: 'w5',  name: '藍月後傳',              desc: 'BG/GL短篇集', seriesId: 's1' },
+    { id: 'w6',  name: '南都冒險譚．本傳',       desc: '01-03',      seriesId: 's2' },
+    { id: 'w7',  name: '南都冒險譚．外傳',       desc: '04-05',      seriesId: 's2' },
+    { id: 'w8',  name: '女武神的黑玫瑰',         desc: 'BG/R18前傳', seriesId: 's1' },
+    { id: 'w9',  name: '費南伊連的新娘',         desc: '',           seriesId: 'other' },
+    { id: 'w10', name: '籠中鳥',                desc: '',           seriesId: 'other' },
+  ],
+  snapshots: [
+    { date: '2025/3/17',  reads: { w1:52146,  w2:9162,  w3:15640, w4:1405, w5:1791,  w6:7830,  w7:690, w8:0,    w9:0,    w10:0   } },
+    { date: '2025/4/17',  reads: { w1:56753,  w2:10984, w3:19085, w4:1609, w5:2505,  w6:8552,  w7:722, w8:323,  w9:0,    w10:0   } },
+    { date: '2025/5/16',  reads: { w1:65678,  w2:11973, w3:23493, w4:1911, w5:3275,  w6:10470, w7:774, w8:1301, w9:0,    w10:0   } },
+    { date: '2025/6/17',  reads: { w1:76000,  w2:13079, w3:27474, w4:2242, w5:4623,  w6:13229, w7:786, w8:2701, w9:0,    w10:0   } },
+    { date: '2025/7/17',  reads: { w1:82800,  w2:14080, w3:29885, w4:2798, w5:5375,  w6:15014, w7:786, w8:3282, w9:400,  w10:0   } },
+    { date: '2025/8/17',  reads: { w1:90200,  w2:15366, w3:32120, w4:2925, w5:7293,  w6:17176, w7:786, w8:4626, w9:1385, w10:0   } },
+    { date: '2025/9/18',  reads: { w1:93700,  w2:15888, w3:33492, w4:3020, w5:7983,  w6:18055, w7:786, w8:5132, w9:1892, w10:0   } },
+    { date: '2025/10/18', reads: { w1:97400,  w2:16225, w3:34658, w4:3074, w5:8319,  w6:19487, w7:786, w8:5451, w9:2352, w10:0   } },
+    { date: '2025/11/18', reads: { w1:100200, w2:16647, w3:35768, w4:3135, w5:8505,  w6:20435, w7:786, w8:5769, w9:3004, w10:0   } },
+    { date: '2025/12/18', reads: { w1:102600, w2:16923, w3:36874, w4:3135, w5:8778,  w6:22479, w7:786, w8:5993, w9:4172, w10:0   } },
+    { date: '2026/1/18',  reads: { w1:107800, w2:17192, w3:37346, w4:3222, w5:8977,  w6:23555, w7:786, w8:6236, w9:4744, w10:0   } },
+    { date: '2026/2/19',  reads: { w1:111600, w2:17572, w3:38054, w4:3293, w5:9236,  w6:24589, w7:786, w8:6544, w9:5394, w10:0   } },
+    { date: '2026/3/19',  reads: { w1:117600, w2:17904, w3:38571, w4:3293, w5:9414,  w6:25595, w7:786, w8:6779, w9:6471, w10:0   } },
+    { date: '2026/4/19',  reads: { w1:133600, w2:18503, w3:40400, w4:3533, w5:10429, w6:27496, w7:786, w8:7484, w9:8338, w10:114 } },
+    { date: '2026/5/19',  reads: { w1:142300, w2:19948, w3:42900, w4:3800, w5:12052, w6:30466, w7:786, w8:8207, w9:9440, w10:114 } },
+  ]
+};
+
+// ═══════════════════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════════════════
+const WORK_PALETTE=['#c84b31','#b8963e','#2a7f7f','#5c6bc0','#7b5ea7','#2e7d32','#bf360c','#00695c','#4e342e','#1565c0','#ad1457','#00838f'];
+const SWATCH_COLORS=['#c84b31','#b8963e','#2a7f7f','#5c6bc0','#7b5ea7','#2e7d32','#bf360c','#00695c','#4e342e','#1565c0','#ad1457','#00838f','#558b2f','#6d4c41','#37474f'];
+
+// ═══════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════
+let DATA, charts={};
+let selTrendWorks=[], selTrendSeries=[];
+let trendMonths=12, trendOffset=0;
+let sortCol=null, sortDir=-1;
+let tblYear=null, tblSnapIdx=null, tblSeriesFilter=null;
+let cmpFromIdx=0, cmpToIdx=0;
+let selSeriesChart=[];
+let swatchColor=SWATCH_COLORS[2];
+
+// ═══════════════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════════════
+const fmt=n=>(n||0).toLocaleString();
+const latestSnap=()=>DATA.snapshots[DATA.snapshots.length-1];
+const prevSnap=()=>DATA.snapshots.length>=2?DATA.snapshots[DATA.snapshots.length-2]:null;
+const workColor=id=>{const i=DATA.works.findIndex(w=>w.id===id);return WORK_PALETTE[i%WORK_PALETTE.length];};
+const seriesColor=sid=>{const s=DATA.series.find(x=>x.id===sid);return s?s.color:'#7a7a9a';};
+const seriesName=sid=>{const s=DATA.series.find(x=>x.id===sid);return s?s.name:'其他';};
+const seriesTotal=(sid,snap)=>DATA.works.filter(w=>w.seriesId===sid).reduce((a,w)=>a+(snap.reads[w.id]||0),0);
+const snapYears=()=>[...new Set(DATA.snapshots.map(s=>s.date.split('/')[0]))].sort();
+const snapsOfYear=y=>DATA.snapshots.map((s,idx)=>({...s,idx})).filter(s=>s.date.startsWith(y+'/'));
+const dc=k=>{if(charts[k]){try{charts[k].destroy();}catch(e){}delete charts[k];}};
+const showToast=msg=>{const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);};
+
+function loadData(){
+  try{const s=localStorage.getItem('rtd3');DATA=s?JSON.parse(s):JSON.parse(JSON.stringify(DEFAULT_DATA));if(!DATA.series)DATA.series=DEFAULT_DATA.series;DATA.works.forEach(w=>{if(!w.seriesId)w.seriesId='other';});}
+  catch(e){DATA=JSON.parse(JSON.stringify(DEFAULT_DATA));}
+}
+const saveData=()=>localStorage.setItem('rtd3',JSON.stringify(DATA));
+
+// ═══════════════════════════════════════════════════════════
+//  DATE PICKER (reusable component via window._dp)
+// ═══════════════════════════════════════════════════════════
+if(!window._dp) window._dp={};
+
+function dpInit(cid, snapIdx, cb){
+  window._dp[cid]={year:DATA.snapshots[snapIdx]?.date.split('/')[0]||snapYears().slice(-1)[0],snapIdx,cb};
+  dpRender(cid);
+}
+function dpRender(cid){
+  const st=window._dp[cid]; if(!st) return;
+  const years=snapYears();
+  if(!years.length){document.getElementById(cid).innerHTML='<span class="snap-missing">尚無快照</span>';return;}
+  const curY=st.year||years.slice(-1)[0];
+  let h=`<div class="year-btn-row">`;
+  years.forEach(y=>{h+=`<button class="year-btn${y===curY?' active':''}" onclick="dpYear('${cid}','${y}')">${y}</button>`;});
+  h+=`</div><div class="month-grid">`;
+  const mSnaps=snapsOfYear(curY);
+  for(let m=1;m<=12;m++){
+    const sn=mSnaps.find(s=>parseInt(s.date.split('/')[1])===m);
+    if(sn){const a=sn.idx===st.snapIdx;h+=`<button class="month-btn has-snap${a?' active':''}" onclick="dpSnap('${cid}',${sn.idx})">${m}月</button>`;}
+    else{h+=`<button class="month-btn no-snap">${m}月</button>`;}
+  }
+  h+=`</div>`;
+  if(st.snapIdx!=null)h+=`<div class="snap-found">✓ ${DATA.snapshots[st.snapIdx]?.date}</div>`;
+  document.getElementById(cid).innerHTML=h;
+}
+function dpYear(cid,y){window._dp[cid].year=y;dpRender(cid);}
+function dpSnap(cid,idx){window._dp[cid].snapIdx=idx;if(!window._dp[cid].year)window._dp[cid].year=DATA.snapshots[idx].date.split('/')[0];dpRender(cid);if(window._dp[cid].cb)window._dp[cid].cb(idx);}
+
+// ═══════════════════════════════════════════════════════════
+//  HEADER
+// ═══════════════════════════════════════════════════════════
+function renderHeader(){
+  const ls=latestSnap(),ps=prevSnap();
+  if(!ls)return;
+  const tot=DATA.works.reduce((s,w)=>s+(ls.reads[w.id]||0),0);
+  const prev=ps?DATA.works.reduce((s,w)=>s+(ps.reads[w.id]||0),0):0,d=tot-prev;
+  document.getElementById('headerStats').innerHTML=`
+    <div class="h-stat"><div class="val">${fmt(tot)}</div><div class="lbl">總閱讀數</div></div>
+    <div class="h-stat"><div class="val" style="color:${d>=0?'#a8d8a0':'#f08080'}">${d>=0?'+':''}${fmt(d)}</div><div class="lbl">上期增減</div></div>
+    <div class="h-stat"><div class="val">${DATA.works.length}</div><div class="lbl">作品數</div></div>
+    <div class="h-stat"><div class="val">${DATA.snapshots.length}</div><div class="lbl">快照數</div></div>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  OVERVIEW
+// ═══════════════════════════════════════════════════════════
+function renderOverview(){
+  const ls=latestSnap(),ps=prevSnap();if(!ls)return;
+  const tot=DATA.works.reduce((s,w)=>s+(ls.reads[w.id]||0),0);
+  const top=[...DATA.works].sort((a,b)=>(ls.reads[b.id]||0)-(ls.reads[a.id]||0))[0];
+  let fw=null,fg=0;
+  if(ps)DATA.works.forEach(w=>{const n=ls.reads[w.id]||0,p=ps.reads[w.id]||0;if(p>0){const g=(n-p)/p;if(g>fg){fg=g;fw=w;}}});
+
+  document.getElementById('overviewStats').innerHTML=`
+    <div class="stat-card"><div class="num">${fmt(tot)}</div><div class="desc">總閱讀數（${ls.date}）</div></div>
+    <div class="stat-card gold"><div class="num">${top?top.name.substring(0,8)+'…':''}</div><div class="desc">最高閱讀 · ${fmt(ls.reads[top?.id]||0)}</div></div>
+    <div class="stat-card teal"><div class="num">${fw?fw.name.substring(0,6)+'…':'—'}</div><div class="desc">成長最快 · ${(fg*100).toFixed(1)}%</div></div>
+    <div class="stat-card purple"><div class="num">${DATA.series.length}</div><div class="desc">系列數</div></div>`;
+
+  document.getElementById('overviewSeriesBlocks').innerHTML=DATA.series.map(ser=>{
+    const t=seriesTotal(ser.id,ls),p=ps?seriesTotal(ser.id,ps):0,d=t-p;
+    const ws=DATA.works.filter(w=>w.seriesId===ser.id);
+    return`<div class="series-block">
+      <div class="series-block-head" style="background:${ser.color}"><span>${ser.name}</span><span style="font-family:'Space Mono',monospace;font-size:0.72rem">${ws.length}作品</span></div>
+      <div class="series-block-body">
+        <div class="snum">${fmt(t)}</div>
+        <div class="smeta">${ps?`上期${d>=0?'+':''}${fmt(d)}`:''}</div>
+        <div class="series-works">${ws.map(w=>w.name).join('、')}</div>
+      </div></div>`;
+  }).join('');
+
+  const sorted=[...DATA.works].sort((a,b)=>(ls.reads[b.id]||0)-(ls.reads[a.id]||0));
+  dc('bar');
+  charts['bar']=new Chart(document.getElementById('chartBar'),{type:'bar',data:{labels:sorted.map(w=>w.name.length>10?w.name.substring(0,10)+'…':w.name),datasets:[{data:sorted.map(w=>ls.reads[w.id]||0),backgroundColor:sorted.map(w=>workColor(w.id)+'cc'),borderColor:sorted.map(w=>workColor(w.id)),borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,grid:{color:'#e0dbd0'}},x:{grid:{display:false}}}}});
+
+  dc('doughnut');
+  charts['doughnut']=new Chart(document.getElementById('chartDoughnut'),{type:'doughnut',data:{labels:DATA.works.map(w=>w.name),datasets:[{data:DATA.works.map(w=>ls.reads[w.id]||0),backgroundColor:DATA.works.map(w=>workColor(w.id)+'cc'),borderColor:DATA.works.map(w=>workColor(w.id)),borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{family:'Noto Serif TC',size:11},boxWidth:14}}},cutout:'55%'}});
+
+  if(ps){
+    const rows=DATA.works.map(w=>{const n=ls.reads[w.id]||0,p=ps.reads[w.id]||0,d=n-p;return{w,n,d,g:p>0?(d/p*100).toFixed(1):null};}).sort((a,b)=>b.d-a.d);
+    const mx=Math.max(...rows.map(r=>Math.abs(r.d)),1);
+    document.getElementById('growthTable').innerHTML=`<table><thead><tr><th>作品</th><th>系列</th><th>最新閱讀</th><th>增減</th><th>成長率</th><th style="min-width:100px">視覺</th></tr></thead><tbody>${rows.map(r=>`<tr>
+      <td><span class="dot" style="background:${workColor(r.w.id)}"></span>${r.w.name}</td>
+      <td><span class="sdot" style="background:${seriesColor(r.w.seriesId)}"></span>${seriesName(r.w.seriesId)}</td>
+      <td class="num-cell">${fmt(r.n)}</td>
+      <td class="num-cell"><span class="badge ${r.d>0?'up':r.d<0?'down':''}">${r.d>0?'+':''}${fmt(r.d)}</span></td>
+      <td class="num-cell">${r.g!==null?r.g+'%':'—'}</td>
+      <td><div class="growth-bar-wrap"><div class="growth-bar${r.d<0?' neg':''}" style="width:${Math.round(Math.abs(r.d)/mx*100)}%"></div></div></td>
+    </tr>`).join('')}</tbody></table>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  TREND
+// ═══════════════════════════════════════════════════════════
+function getTrendWindow(){
+  const snaps=DATA.snapshots,total=snaps.length;
+  if(trendMonths===0)return{snaps,start:0,end:total-1};
+  const end=Math.max(0,total-1-trendOffset);
+  const endDate=new Date(snaps[end].date.replace(/\//g,'-'));
+  let startIdx=end;
+  for(let i=end;i>=0;i--){
+    const diff=(endDate-new Date(snaps[i].date.replace(/\//g,'-')))/(1000*60*60*24*30);
+    if(diff>trendMonths){startIdx=i+1;break;}
+    if(i===0)startIdx=0;
+  }
+  return{snaps:snaps.slice(startIdx,end+1),start:startIdx,end};
+}
+
+function renderTrend(){
+  // series pills
+  document.getElementById('trendSeriesPills').innerHTML=`
+    <button class="pill series-pill${selTrendSeries.length===0?' active':''}" onclick="trendFilterSeries(null)">全部系列</button>
+    ${DATA.series.map(s=>`<button class="pill series-pill${selTrendSeries.includes(s.id)?' active':''}" onclick="trendFilterSeries('${s.id}')"
+      style="${selTrendSeries.includes(s.id)?`background:${s.color};border-color:${s.color};color:white`:''}">
+      ${s.name}</button>`).join('')}`;
+  // work pills
+  const vis=selTrendSeries.length===0?DATA.works:DATA.works.filter(w=>selTrendSeries.includes(w.seriesId));
+  document.getElementById('trendWorkPills').innerHTML=vis.map(w=>`
+    <button class="pill${selTrendWorks.includes(w.id)?' active':''}" onclick="toggleTrendWork('${w.id}')">${w.name}</button>`).join('');
+  // range btns
+  document.querySelectorAll('.trend-range-btn').forEach(b=>b.classList.toggle('active',parseInt(b.dataset.months)===trendMonths));
+  renderTrendCharts();
+}
+
+function trendFilterSeries(sid){
+  if(!sid){selTrendSeries=[];}
+  else{const i=selTrendSeries.indexOf(sid);if(i>=0)selTrendSeries.splice(i,1);else selTrendSeries.push(sid);}
+  if(selTrendSeries.length>0)selTrendWorks=DATA.works.filter(w=>selTrendSeries.includes(w.seriesId)).map(w=>w.id);
+  renderTrend();
+}
+function toggleTrendWork(id){const i=selTrendWorks.indexOf(id);if(i>=0)selTrendWorks.splice(i,1);else selTrendWorks.push(id);renderTrend();}
+function trendShift(dir){const max=Math.max(0,DATA.snapshots.length-(trendMonths||DATA.snapshots.length));trendOffset=Math.max(0,Math.min(max,trendOffset-dir));renderTrendCharts();}
+
+function renderTrendCharts(){
+  const {snaps}=getTrendWindow();if(!snaps.length)return;
+  const f=snaps[0].date,l=snaps[snaps.length-1].date;
+  document.getElementById('trendPosLabel').textContent=`${f} ～ ${l}`;
+  const ws=selTrendWorks.length>0?DATA.works.filter(w=>selTrendWorks.includes(w.id)):DATA.works;
+  const labels=snaps.map(s=>s.date);
+
+  dc('trend');
+  charts['trend']=new Chart(document.getElementById('chartTrend'),{type:'line',data:{labels,datasets:ws.map(w=>({label:w.name,data:snaps.map(s=>s.reads[w.id]||0),borderColor:workColor(w.id),backgroundColor:workColor(w.id)+'22',fill:false,tension:0.3,pointRadius:4,pointHoverRadius:7}))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{family:'Noto Serif TC',size:11},boxWidth:14}}},scales:{y:{beginAtZero:false,grid:{color:'#e0dbd0'}},x:{grid:{color:'#e0dbd0'},ticks:{maxRotation:45}}},interaction:{mode:'index'}}});
+
+  dc('delta');
+  charts['delta']=new Chart(document.getElementById('chartDelta'),{type:'bar',data:{labels:labels.slice(1),datasets:ws.map(w=>({label:w.name,data:snaps.slice(1).map((s,i)=>(s.reads[w.id]||0)-(snaps[i].reads[w.id]||0)),backgroundColor:workColor(w.id)+'bb',borderColor:workColor(w.id),borderWidth:1}))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{family:'Noto Serif TC',size:11},boxWidth:14}}},scales:{y:{grid:{color:'#e0dbd0'}},x:{grid:{display:false},ticks:{maxRotation:45}}},interaction:{mode:'index'}}});
+}
+
+// ═══════════════════════════════════════════════════════════
+//  COMPARISON
+// ═══════════════════════════════════════════════════════════
+function renderComparison(){
+  dpInit('cmpFromPicker',0,idx=>{cmpFromIdx=idx;renderCmpCharts();});
+  dpInit('cmpToPicker',DATA.snapshots.length-1,idx=>{cmpToIdx=idx;renderCmpCharts();});
+  cmpFromIdx=0;cmpToIdx=DATA.snapshots.length-1;
+  renderCmpCharts();
+}
+function renderCmpCharts(){
+  const from=DATA.snapshots[cmpFromIdx],to=DATA.snapshots[cmpToIdx];if(!from||!to)return;
+  const rows=DATA.works.map(w=>{const a=from.reads[w.id]||0,b=to.reads[w.id]||0,d=b-a,g=a>0?(b-a)/a*100:null;return{w,a,b,d,g};}).sort((x,y)=>(y.g??-999)-(x.g??-999));
+  dc('cmp');
+  charts['cmp']=new Chart(document.getElementById('chartCmp'),{type:'bar',data:{labels:rows.map(r=>r.w.name.length>12?r.w.name.substring(0,12)+'…':r.w.name),datasets:[{label:from.date,data:rows.map(r=>r.a),backgroundColor:'#1a1a2e33',borderColor:'#1a1a2e',borderWidth:2},{label:to.date,data:rows.map(r=>r.b),backgroundColor:rows.map(r=>workColor(r.w.id)+'bb'),borderColor:rows.map(r=>workColor(r.w.id)),borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{family:'Noto Serif TC',size:11}}}},scales:{y:{beginAtZero:true,grid:{color:'#e0dbd0'}},x:{grid:{display:false}}}}});
+  document.getElementById('cmpTable').innerHTML=`<table><thead><tr><th>作品</th><th>系列</th><th>${from.date}</th><th>${to.date}</th><th>增減</th><th>成長率</th></tr></thead><tbody>${rows.map(r=>`<tr>
+    <td><span class="dot" style="background:${workColor(r.w.id)}"></span>${r.w.name}</td>
+    <td><span class="sdot" style="background:${seriesColor(r.w.seriesId)}"></span>${seriesName(r.w.seriesId)}</td>
+    <td class="num-cell">${fmt(r.a)}</td><td class="num-cell">${fmt(r.b)}</td>
+    <td class="num-cell"><span class="badge ${r.d>0?'up':r.d<0?'down':''}">${r.d>0?'+':''}${fmt(r.d)}</span></td>
+    <td class="num-cell">${r.g!==null?r.g.toFixed(1)+'%':'—'}</td>
+  </tr>`).join('')}</tbody></table>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SERIES TAB
+// ═══════════════════════════════════════════════════════════
+function renderSeriesTab(){
+  if(!selSeriesChart.length)selSeriesChart=DATA.series.map(s=>s.id);
+  document.getElementById('seriesChartPills').innerHTML=DATA.series.map(s=>`
+    <button class="pill series-pill${selSeriesChart.includes(s.id)?' active':''}" onclick="toggleSeriesChart('${s.id}')"
+      style="${selSeriesChart.includes(s.id)?`background:${s.color};border-color:${s.color};color:white`:''}">
+      ${s.name}</button>`).join('');
+
+  dc('seriesTrend');
+  charts['seriesTrend']=new Chart(document.getElementById('chartSeriesTrend'),{type:'line',data:{labels:DATA.snapshots.map(s=>s.date),datasets:DATA.series.filter(s=>selSeriesChart.includes(s.id)).map(ser=>({label:ser.name,data:DATA.snapshots.map(snap=>seriesTotal(ser.id,snap)),borderColor:ser.color,backgroundColor:ser.color+'22',fill:false,tension:0.3,pointRadius:4,pointHoverRadius:7}))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{family:'Noto Serif TC',size:11},boxWidth:14}}},scales:{y:{beginAtZero:false,grid:{color:'#e0dbd0'}},x:{grid:{color:'#e0dbd0'},ticks:{maxRotation:45}}},interaction:{mode:'index'}}});
+
+  const ls=latestSnap(),ps=prevSnap();
+  document.getElementById('seriesDetailBlocks').innerHTML=DATA.series.map((ser,si)=>{
+    const ws=DATA.works.filter(w=>w.seriesId===ser.id),t=seriesTotal(ser.id,ls),pv=ps?seriesTotal(ser.id,ps):0,d=t-pv,g=pv>0?(d/pv*100).toFixed(1):null;
+    return`${si>0?'<hr class="section-sep">':''}<div>
+      <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;flex-wrap:wrap">
+        <div style="width:14px;height:14px;background:${ser.color};border-radius:2px"></div>
+        <strong>${ser.name}</strong>
+        <span style="font-family:'Space Mono',monospace;font-size:1rem;color:${ser.color}">${fmt(t)}</span>
+        ${g?`<span class="badge ${d>=0?'up':'down'}">${d>=0?'+':''}${fmt(d)} (${g}%)</span>`:''}
+      </div>
+      <table><thead><tr><th>作品</th><th>閱讀數</th><th>增減</th><th>成長率</th><th>系列佔比</th></tr></thead>
+      <tbody>${ws.map(w=>{const r=ls.reads[w.id]||0,p=ps?ps.reads[w.id]||0:0,wd=r-p;return`<tr>
+        <td><span class="dot" style="background:${workColor(w.id)}"></span>${w.name}</td>
+        <td class="num-cell">${fmt(r)}</td>
+        <td class="num-cell"><span class="badge ${wd>0?'up':wd<0?'down':''}">${wd>0?'+':''}${fmt(wd)}</span></td>
+        <td class="num-cell">${p>0?((wd/p)*100).toFixed(1)+'%':'—'}</td>
+        <td class="num-cell">${t>0?(r/t*100).toFixed(1)+'%':'—'}</td>
+      </tr>`;}).join('')}</tbody></table></div>`;}).join('');
+}
+function toggleSeriesChart(sid){const i=selSeriesChart.indexOf(sid);if(i>=0)selSeriesChart.splice(i,1);else selSeriesChart.push(sid);renderSeriesTab();}
+
+// ═══════════════════════════════════════════════════════════
+//  TABLE TAB
+// ═══════════════════════════════════════════════════════════
+function renderTableInit(){
+  const years=snapYears();
+  if(!tblYear)tblYear=years.slice(-1)[0];
+  document.getElementById('tblYearRow').innerHTML=years.map(y=>`<button class="year-btn${y===tblYear?' active':''}" onclick="tblSelectYear('${y}')">${y}</button>`).join('');
+  renderTblMonths();
+}
+function tblSelectYear(y){tblYear=y;tblSnapIdx=null;renderTableInit();}
+function renderTblMonths(){
+  const mSnaps=snapsOfYear(tblYear);
+  let h='';
+  for(let m=1;m<=12;m++){
+    const sn=mSnaps.find(s=>parseInt(s.date.split('/')[1])===m);
+    if(sn){const a=sn.idx===tblSnapIdx;h+=`<button class="month-btn has-snap${a?' active':''}" onclick="tblSelectSnap(${sn.idx})">${m}月</button>`;}
+    else{h+=`<button class="month-btn no-snap">${m}月</button>`;}
+  }
+  // auto-select latest of year
+  if(tblSnapIdx===null){const last=mSnaps.slice(-1)[0];if(last)tblSnapIdx=last.idx;}
+  document.getElementById('tblMonthGrid').innerHTML=h;
+  document.getElementById('tblSnapInfo').textContent=tblSnapIdx!=null?`✓ 顯示快照：${DATA.snapshots[tblSnapIdx]?.date}`:'';
+  renderTblSeriesFilter();
+  renderDataTable();
+}
+function tblSelectSnap(idx){tblSnapIdx=idx;renderTblMonths();}
+function renderTblSeriesFilter(){
+  document.getElementById('tblSeriesFilter').innerHTML=`
+    <button class="pill series-pill${!tblSeriesFilter?' active':''}" onclick="setTblSeries(null)">全部</button>
+    ${DATA.series.map(s=>`<button class="pill series-pill${tblSeriesFilter===s.id?' active':''}" onclick="setTblSeries('${s.id}')"
+      style="${tblSeriesFilter===s.id?`background:${s.color};border-color:${s.color};color:white`:''}">
+      ${s.name}</button>`).join('')}`;
+}
+function setTblSeries(sid){tblSeriesFilter=sid;renderTblSeriesFilter();renderDataTable();}
+function renderDataTable(){
+  if(tblSnapIdx===null)return;
+  const snap=DATA.snapshots[tblSnapIdx],pv=tblSnapIdx>0?DATA.snapshots[tblSnapIdx-1]:null;if(!snap)return;
+  let ws=[...DATA.works];
+  if(tblSeriesFilter)ws=ws.filter(w=>w.seriesId===tblSeriesFilter);
+  ws.sort((a,b)=>{
+    if(sortCol==='name')return a.name.localeCompare(b.name)*sortDir;
+    if(sortCol==='reads')return((snap.reads[a.id]||0)-(snap.reads[b.id]||0))*sortDir;
+    if(sortCol==='delta'){const pa=pv?pv.reads[a.id]||0:0,pb=pv?pv.reads[b.id]||0:0;return(((snap.reads[a.id]||0)-pa)-((snap.reads[b.id]||0)-pb))*sortDir;}
+    if(sortCol==='pct'){const pa=pv?pv.reads[a.id]||0:0,pb=pv?pv.reads[b.id]||0:0;const ga=pa>0?((snap.reads[a.id]||0)-pa)/pa:0,gb=pb>0?((snap.reads[b.id]||0)-pb)/pb:0;return(ga-gb)*sortDir;}
+    return(snap.reads[b.id]||0)-(snap.reads[a.id]||0);
+  });
+  const tot=ws.reduce((s,w)=>s+(snap.reads[w.id]||0),0);
+  const sc=col=>sortCol===col?(sortDir>0?' ↑':' ↓'):'';
+  const sh=col=>`onclick="tblSort('${col}')"`;
+  document.getElementById('dataTable').innerHTML=`<table><thead><tr>
+    <th ${sh('name')}>作品${sc('name')}</th><th>系列</th>
+    <th ${sh('reads')} style="text-align:right">閱讀數${sc('reads')}</th>
+    <th ${sh('delta')} style="text-align:right">增減${sc('delta')}</th>
+    <th ${sh('pct')} style="text-align:right">成長率${sc('pct')}</th>
+    <th style="text-align:right">佔比</th>
+  </tr></thead><tbody>${ws.map(w=>{const r=snap.reads[w.id]||0,p=pv?pv.reads[w.id]||0:0,d=r-p,g=p>0?(d/p*100).toFixed(1):null;return`<tr>
+    <td><span class="dot" style="background:${workColor(w.id)}"></span>${w.name}</td>
+    <td><span class="sdot" style="background:${seriesColor(w.seriesId)}"></span>${seriesName(w.seriesId)}</td>
+    <td class="num-cell">${fmt(r)}</td>
+    <td class="num-cell"><span class="badge ${d>0?'up':d<0?'down':''}">${d>0?'+':''}${fmt(d)}</span></td>
+    <td class="num-cell">${g!==null?g+'%':'—'}</td>
+    <td class="num-cell">${tot>0?(r/tot*100).toFixed(1)+'%':'—'}</td>
+  </tr>`;}).join('')}<tr style="font-weight:700;background:var(--paper-dark)"><td colspan="2">合計</td><td class="num-cell">${fmt(tot)}</td><td></td><td></td><td class="num-cell">100%</td></tr></tbody></table>`;
+}
+function tblSort(col){if(sortCol===col)sortDir*=-1;else{sortCol=col;sortDir=-1;}renderDataTable();}
+
+// ═══════════════════════════════════════════════════════════
+//  EDIT
+// ═══════════════════════════════════════════════════════════
+function renderEdit(){
+  // series list
+  document.getElementById('seriesList').innerHTML=DATA.series.map(s=>`<div class="work-item">
+    <div><div class="wname"><span class="sdot" style="background:${s.color}"></span>${s.name}</div></div>
+    ${s.id!=='other'?`<button class="del-btn" onclick="deleteSeries('${s.id}')">✕</button>`:`<span style="font-size:0.7rem;color:var(--muted)">預設</span>`}
+  </div>`).join('');
+  // swatches
+  document.getElementById('seriesSwatches').innerHTML=SWATCH_COLORS.map(c=>`<div class="swatch${swatchColor===c?' selected':''}" style="background:${c}" onclick="pickSwatch('${c}')"></div>`).join('');
+  document.getElementById('newSeriesColor').value=swatchColor;
+  // works series select
+  document.getElementById('newWorkSeries').innerHTML=DATA.series.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  // works list
+  document.getElementById('worksList').innerHTML=DATA.works.map(w=>`<div class="work-item">
+    <div><div class="wname"><span class="dot" style="background:${workColor(w.id)}"></span>${w.name}</div>
+    <div class="winfo"><span class="sdot" style="background:${seriesColor(w.seriesId)}"></span>${seriesName(w.seriesId)}${w.desc?' · '+w.desc:''}</div></div>
+    <button class="del-btn" onclick="deleteWork('${w.id}')">✕</button>
+  </div>`).join('');
+  // snap inputs
+  document.getElementById('snapInputs').innerHTML=DATA.works.map(w=>`<div class="form-group" style="margin:0">
+    <label>${w.name.substring(0,14)}</label>
+    <input type="number" id="snap_${w.id}" placeholder="0" min="0">
+  </div>`).join('');
+  // delete snap select
+  document.getElementById('deleteSnapSelect').innerHTML=DATA.snapshots.map((s,i)=>`<option value="${i}">${s.date}</option>`).join('');
+  document.getElementById('deleteSnapSelect').value=DATA.snapshots.length-1;
+}
+
+function pickSwatch(c){swatchColor=c;document.getElementById('newSeriesColor').value=c;document.querySelectorAll('#seriesSwatches .swatch').forEach(el=>el.classList.toggle('selected',el.style.background===c||el.style.backgroundColor===c));}
+
+function addSeries(){
+  const name=document.getElementById('newSeriesName').value.trim(),color=document.getElementById('newSeriesColor').value.trim()||swatchColor;
+  if(!name)return alert('請填入系列名稱');
+  DATA.series.push({id:'s_'+Date.now(),name,color});
+  document.getElementById('newSeriesName').value='';
+  saveData();fullRefresh();
+}
+function deleteSeries(id){
+  if(!confirm('確定刪除此系列？旗下作品將移至「其他」。'))return;
+  DATA.series=DATA.series.filter(s=>s.id!==id);
+  DATA.works.forEach(w=>{if(w.seriesId===id)w.seriesId='other';});
+  saveData();fullRefresh();
+}
+function addWork(){
+  const name=document.getElementById('newWorkName').value.trim();if(!name)return alert('請填入作品名稱');
+  DATA.works.push({id:'w_'+Date.now(),name,desc:document.getElementById('newWorkDesc').value.trim(),seriesId:document.getElementById('newWorkSeries').value||'other'});
+  document.getElementById('newWorkName').value='';document.getElementById('newWorkDesc').value='';
+  saveData();fullRefresh();
+}
+function deleteWork(id){
+  if(!confirm('確定刪除此作品？'))return;
+  DATA.works=DATA.works.filter(w=>w.id!==id);DATA.snapshots.forEach(s=>delete s.reads[id]);
+  saveData();fullRefresh();
+}
+function addSnapshot(){
+  const date=document.getElementById('newSnapDate').value.trim();if(!date)return alert('請填入日期');
+  if(DATA.snapshots.find(s=>s.date===date))return alert('此日期快照已存在');
+  const reads={};DATA.works.forEach(w=>{reads[w.id]=parseInt(document.getElementById('snap_'+w.id)?.value)||0;});
+  DATA.snapshots.push({date,reads});DATA.snapshots.sort((a,b)=>a.date.localeCompare(b.date));
+  document.getElementById('newSnapDate').value='';DATA.works.forEach(w=>{const el=document.getElementById('snap_'+w.id);if(el)el.value='';});
+  saveData();fullRefresh();showToast('快照已加入！');
+}
+function deleteSnapshot(){
+  const idx=parseInt(document.getElementById('deleteSnapSelect').value);
+  if(!confirm(`確定刪除快照 ${DATA.snapshots[idx]?.date}？`))return;
+  DATA.snapshots.splice(idx,1);saveData();fullRefresh();showToast('快照已刪除');
+}
+function generateConstPrompt(){
+  const json=JSON.stringify(DATA,null,2);
+  const msg=`下方是您目前資料的完整 JSON。\n\n【如何永久更新預設值】\n1. 開啟 HTML 檔案（用文字編輯器）\n2. 找到 const DEFAULT_DATA =\n3. 將其後的 { ... } 物件替換成下方 JSON\n4. 儲存後，新預設資料就會生效。`;
+  openModal('產生 const 程式碼',msg,json);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  EXPORT / IMPORT
+// ═══════════════════════════════════════════════════════════
+function exportJSON(){dl(new Blob([JSON.stringify(DATA,null,2)],{type:'application/json'}),'reading_data.json');}
+function exportBlankTemplate(){
+  const t={series:JSON.parse(JSON.stringify(DATA.series)),works:JSON.parse(JSON.stringify(DATA.works)),snapshots:[]};
+  dl(new Blob([JSON.stringify(t,null,2)],{type:'application/json'}),'reading_template.json');showToast('空白範本已匯出');
+}
+function exportCSV(){
+  const h=['日期',...DATA.works.map(w=>w.name)].join(',');
+  const rows=DATA.snapshots.map(s=>[s.date,...DATA.works.map(w=>s.reads[w.id]||0)].join(','));
+  dl(new Blob(['\uFEFF'+[h,...rows].join('\n')],{type:'text/csv;charset=utf-8'}),'reading_data.csv');
+}
+function exportXLSX(){
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['日期',...DATA.works.map(w=>w.name)],...DATA.snapshots.map(s=>[s.date,...DATA.works.map(w=>s.reads[w.id]||0)])]),'閱讀數');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['日期',...DATA.works.map(w=>w.name)],...DATA.snapshots.slice(1).map((s,i)=>[s.date,...DATA.works.map(w=>(s.reads[w.id]||0)-(DATA.snapshots[i].reads[w.id]||0))])]),'增減');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['日期',...DATA.works.map(w=>w.name)],...DATA.snapshots.slice(1).map((s,i)=>[s.date,...DATA.works.map(w=>{const n=s.reads[w.id]||0,p=DATA.snapshots[i].reads[w.id]||0;return p>0?((n-p)/p*100).toFixed(2)+'%':'—';})])]),'成長率');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['日期',...DATA.series.map(s=>s.name)],...DATA.snapshots.map(s=>[s.date,...DATA.series.map(ser=>seriesTotal(ser.id,s))])]),'系列');
+  XLSX.writeFile(wb,'reading_data.xlsx');
+}
+function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();}
+
+function handleImportFile(e){
+  const file=e.target.files[0];if(!file)return;
+  const r=new FileReader();r.onload=ev=>{document.getElementById('jsonImport').value=ev.target.result;importJsonText();};r.readAsText(file);
+}
+function importJsonText(){
+  try{const d=JSON.parse(document.getElementById('jsonImport').value);if(!d.works||!d.snapshots)throw new Error('缺少 works 或 snapshots');if(!d.series)d.series=DEFAULT_DATA.series;DATA=d;saveData();fullRefresh();document.getElementById('jsonImport').value='';showToast('匯入成功！');}
+  catch(e){alert('JSON 格式錯誤：'+e.message);}
+}
+function showCurrentJson(){openModal('目前資料 JSON','複製此內容可用於備份，或貼入 HTML 的 DEFAULT_DATA 來永久更新。',JSON.stringify(DATA,null,2));}
+function resetData(){if(!confirm('確定重設為內建預設資料？'))return;DATA=JSON.parse(JSON.stringify(DEFAULT_DATA));saveData();fullRefresh();showToast('已重設！');}
+
+// ═══════════════════════════════════════════════════════════
+//  MODAL
+// ═══════════════════════════════════════════════════════════
+function openModal(title,desc,content){
+  document.getElementById('modalTitle').textContent=title;
+  document.getElementById('modalDesc').textContent=desc;
+  document.getElementById('modalContent').value=content;
+  document.getElementById('modalOverlay').classList.remove('hidden');
+}
+function closeModalClick(e){if(e.target===document.getElementById('modalOverlay'))document.getElementById('modalOverlay').classList.add('hidden');}
+function copyModalContent(){const ta=document.getElementById('modalContent');ta.select();try{document.execCommand('copy');}catch(e){navigator.clipboard.writeText(ta.value);}showToast('已複製到剪貼簿！');}
+
+// ═══════════════════════════════════════════════════════════
+//  DRAG DROP
+// ═══════════════════════════════════════════════════════════
+function setupDrop(){
+  const d=document.getElementById('importDrop');if(!d)return;
+  d.addEventListener('dragover',e=>{e.preventDefault();d.classList.add('drag-over');});
+  d.addEventListener('dragleave',()=>d.classList.remove('drag-over'));
+  d.addEventListener('drop',e=>{e.preventDefault();d.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{document.getElementById('jsonImport').value=ev.target.result;importJsonText();};r.readAsText(f);});
+}
+
+// ═══════════════════════════════════════════════════════════
+//  ROUTING
+// ═══════════════════════════════════════════════════════════
+function showTab(name){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.querySelector(`nav button[data-tab="${name}"]`).classList.add('active');
+  if(name==='overview')renderOverview();
+  if(name==='trend')renderTrend();
+  if(name==='comparison')renderComparison();
+  if(name==='series')renderSeriesTab();
+  if(name==='table')renderTableInit();
+  if(name==='edit')renderEdit();
+}
+function fullRefresh(){
+  renderHeader();
+  const a=document.querySelector('nav button.active');
+  if(a)showTab(a.dataset.tab);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded',()=>{
+  loadData();
+  document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
+  document.querySelectorAll('.trend-range-btn').forEach(b=>b.addEventListener('click',()=>{trendMonths=parseInt(b.dataset.months);trendOffset=0;renderTrend();}));
+  setupDrop();
+  selTrendWorks=DATA.works.slice(0,4).map(w=>w.id);
+  fullRefresh();
+  showTab('overview');
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小說章節分析工具 (v5.3 智慧圖表版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Mammoth.js: 讀取 Docx -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <!-- js-yaml: 解析 YAML -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+    <!-- Chart.js: 圖表繪製 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FileSaver.js: 匯出 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #f8fafc;
+            color: #334155;
+        }
+
+        .drop-zone {
+            border: 2px dashed #cbd5e1;
+            transition: all 0.3s ease;
+            background-color: #fff;
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: #6366f1;
+            background-color: #eef2ff;
+            transform: scale(1.01);
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+        }
+
+        /* 表格樣式 */
+        .stats-table th {
+            background-color: #f1f5f9;
+            color: #475569;
+            font-weight: 700;
+            white-space: nowrap;
+            font-size: 0.85rem;
+            padding: 0.75rem 1rem;
+        }
+        .stats-table td {
+            border-bottom: 1px solid #e2e8f0;
+            vertical-align: middle;
+            padding: 0.75rem 1rem;
+            font-size: 0.9rem;
+        }
+        .stats-table tr:last-child td { border-bottom: none; }
+        .stats-table tr:hover { background-color: #f8fafc; }
+
+        .btn-action {
+            transition: all 0.2s;
+        }
+        .btn-action:active { transform: scale(0.95); }
+    </style>
+</head>
+<body class="p-4 md:p-8 min-h-screen flex flex-col items-center">
+
+    <div class="max-w-7xl w-full space-y-6">
+        
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-2 bg-white p-6 rounded-xl shadow-sm border border-slate-100">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-bold text-slate-800 flex items-center gap-3">
+                    <span class="bg-indigo-600 text-white w-10 h-10 rounded-lg flex items-center justify-center text-lg">
+                        <i class="fas fa-book-open"></i>
+                    </span>
+                    小說章節分析工具 v5.3
+                </h1>
+                <p class="text-slate-500 text-sm mt-1 ml-14">
+                    支援拖曳資料夾 ‧ 自動掃描子目錄 ‧ 字數統計 ‧ 智慧圖表切換
+                </p>
+            </div>
+            <div class="mt-4 md:mt-0 flex gap-3">
+                <button onclick="clearAll()" class="px-4 py-2 text-sm text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition flex items-center gap-2 btn-action">
+                    <i class="fas fa-trash-alt"></i> 清空重來
+                </button>
+            </div>
+        </header>
+
+        <!-- Drop Zone & Inputs -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <!-- Drop Zone (佔 3 欄) -->
+            <div id="dropZone" class="md:col-span-3 card drop-zone p-8 flex flex-col items-center justify-center cursor-pointer text-center h-48 relative group">
+                <input type="file" id="fileInput" multiple accept=".md,.txt,.docx" class="hidden">
+                <input type="file" id="folderInput" webkitdirectory directory multiple class="hidden">
+                
+                <i class="fas fa-folder-tree text-5xl text-indigo-300 mb-4 group-hover:text-indigo-500 transition-colors"></i>
+                <h3 class="text-xl font-medium text-slate-700">直接拖曳「整個資料夾」或檔案至此</h3>
+                <p class="text-sm text-slate-400 mt-2">支援 md, txt, docx (會自動掃描資料夾內所有層級)</p>
+            </div>
+
+            <!-- Action Buttons (佔 1 欄) -->
+            <div class="md:col-span-1 flex flex-col gap-3">
+                <button onclick="document.getElementById('fileInput').click()" class="btn-action flex-1 bg-white border border-indigo-200 text-indigo-600 hover:bg-indigo-50 rounded-xl font-medium shadow-sm transition flex items-center justify-center gap-2">
+                    <i class="fas fa-file-alt"></i> 選擇檔案
+                </button>
+                <div class="relative flex-1 group">
+                    <button onclick="document.getElementById('folderInput').click()" class="btn-action w-full h-full bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-medium shadow-sm transition flex flex-col items-center justify-center gap-1">
+                        <div class="flex items-center gap-2"><i class="fas fa-folder"></i> 選擇資料夾</div>
+                        <span class="text-xs opacity-70 font-normal">(選中資料夾後按上傳)</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 統計數據與圖表區 (預設隱藏) -->
+        <div id="analysisSection" class="hidden animate-fade-in space-y-6">
+            
+            <!-- 警示區 -->
+            <div id="alertBox" class="hidden bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r shadow-sm">
+                <div class="flex">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-exclamation-triangle text-amber-500"></i>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm text-amber-700 font-bold">檢測到章節異常</p>
+                        <p class="text-sm text-amber-600 mt-1" id="alertMsg"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 總計數據卡片 -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="card p-4 border-l-4 border-blue-500">
+                    <p class="text-xs text-slate-500 uppercase font-bold">總章節數</p>
+                    <p class="text-2xl font-bold text-slate-800" id="statTotalFiles">0</p>
+                </div>
+                <div class="card p-4 border-l-4 border-emerald-500">
+                    <p class="text-xs text-slate-500 uppercase font-bold">總字數 (含標點)</p>
+                    <p class="text-2xl font-bold text-slate-800" id="statTotalWords">0</p>
+                </div>
+                <div class="card p-4 border-l-4 border-purple-500">
+                    <p class="text-xs text-slate-500 uppercase font-bold">平均每章字數</p>
+                    <p class="text-2xl font-bold text-slate-800" id="statAvgWords">0</p>
+                </div>
+                <div class="card p-4 border-l-4 border-orange-500">
+                    <p class="text-xs text-slate-500 uppercase font-bold">資料夾/卷數</p>
+                    <p class="text-2xl font-bold text-slate-800" id="statTotalFolders">0</p>
+                </div>
+            </div>
+
+            <!-- 圖表區 -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- 長條圖 (佔 2 欄) -->
+                <div class="md:col-span-2 card p-4">
+                    <h4 class="text-sm font-bold text-slate-600 mb-4" id="barChartTitle"><i class="fas fa-chart-bar mr-2"></i>各章節字數趨勢</h4>
+                    <div class="relative h-64 w-full">
+                        <canvas id="barChart"></canvas>
+                    </div>
+                </div>
+                <!-- 圓餅圖 (佔 1 欄) -->
+                <div class="md:col-span-1 card p-4">
+                    <h4 class="text-sm font-bold text-slate-600 mb-4"><i class="fas fa-chart-pie mr-2"></i>資料夾/卷字數佔比</h4>
+                    <div class="relative h-64 w-full flex justify-center">
+                        <canvas id="pieChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 詳細列表 -->
+            <div class="card overflow-hidden">
+                <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-wrap gap-4 justify-between items-center">
+                    <h3 class="font-bold text-slate-700">詳細分析列表</h3>
+                    <div class="flex gap-2">
+                         <button onclick="exportCSV()" class="px-3 py-1.5 bg-green-600 text-white rounded text-sm hover:bg-green-700 font-medium transition shadow-sm flex items-center gap-1">
+                            <i class="fas fa-file-csv"></i> 匯出 CSV
+                        </button>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left stats-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th class="cursor-pointer hover:bg-slate-200" onclick="sortTable('folder')">資料夾/卷 <i class="fas fa-sort text-xs ml-1"></i></th>
+                                <th class="cursor-pointer hover:bg-slate-200" onclick="sortTable('filename')">檔名 <i class="fas fa-sort text-xs ml-1"></i></th>
+                                <th>標題 (Title)</th>
+                                <th>日期</th>
+                                <th class="text-right cursor-pointer hover:bg-slate-200" onclick="sortTable('words')">字數 (全) <i class="fas fa-sort text-xs ml-1"></i></th>
+                                <th class="text-right">中文</th>
+                                <th class="text-right">英文</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            <!-- JS 填充 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="loading" class="hidden fixed inset-0 bg-white/90 z-50 flex flex-col items-center justify-center backdrop-blur-sm">
+            <div class="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 border-t-indigo-600 mb-4"></div>
+            <p class="text-slate-600 font-bold text-lg animate-pulse mt-4">正在掃描資料夾與分析...</p>
+            <p class="text-slate-400 text-sm mt-2">請稍候，檔案較多時需要一點時間</p>
+        </div>
+
+    </div>
+
+    <script>
+        let processedData = [];
+        let barChartInstance = null;
+        let pieChartInstance = null;
+
+        // --- Event Listeners ---
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const folderInput = document.getElementById('folderInput');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => handleInputFiles(e.target.files));
+        folderInput.addEventListener('change', (e) => handleInputFiles(e.target.files));
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+            }, false);
+        });
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('dragover'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('dragover'), false);
+        });
+
+        // 處理拖曳 (支援資料夾)
+        dropZone.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.remove('dragover');
+
+            const items = e.dataTransfer.items;
+            if (!items) return;
+
+            showLoading(true);
+            const files = [];
+            
+            // 使用 webkitGetAsEntry 遞迴讀取資料夾
+            const promises = [];
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i].webkitGetAsEntry();
+                if (item) {
+                    promises.push(traverseFileTree(item));
+                }
+            }
+
+            try {
+                const results = await Promise.all(promises);
+                // Flatten results
+                results.forEach(fileList => files.push(...fileList));
+                await processFiles(files);
+            } catch (err) {
+                console.error(err);
+                alert("讀取檔案發生錯誤");
+            } finally {
+                showLoading(false);
+            }
+        }, false);
+
+        // --- Recursive Directory Reader ---
+        function traverseFileTree(item, path = "") {
+            return new Promise((resolve) => {
+                path = path || "";
+                if (item.isFile) {
+                    item.file((file) => {
+                        // 手動附加路徑資訊，因為拖曳的 file object 沒有 webkitRelativePath
+                        file.customPath = path + file.name;
+                        resolve([file]);
+                    });
+                } else if (item.isDirectory) {
+                    const dirReader = item.createReader();
+                    const entries = [];
+                    
+                    const readEntries = () => {
+                        dirReader.readEntries((result) => {
+                            if (result.length > 0) {
+                                entries.push(...result);
+                                readEntries(); // Continue reading
+                            } else {
+                                const subPromises = entries.map(entry => traverseFileTree(entry, path + item.name + "/"));
+                                Promise.all(subPromises).then(results => {
+                                    resolve(results.flat());
+                                });
+                            }
+                        });
+                    };
+                    readEntries();
+                } else {
+                    resolve([]);
+                }
+            });
+        }
+
+        // --- Core Logic ---
+
+        // 處理 input 選擇的檔案 (包含資料夾上傳)
+        async function handleInputFiles(files) {
+            if (!files || files.length === 0) return;
+            showLoading(true);
+            await processFiles(Array.from(files));
+            showLoading(false);
+            fileInput.value = '';
+            folderInput.value = '';
+        }
+
+        async function processFiles(files) {
+            // 過濾副檔名
+            const validFiles = files.filter(f => {
+                const ext = f.name.split('.').pop().toLowerCase();
+                return ['md', 'txt', 'docx'].includes(ext) && !f.name.startsWith('~$'); // 排除 Word 暫存檔
+            });
+
+            if (validFiles.length === 0) {
+                alert("未找到支援的檔案 (.md, .txt, .docx)");
+                return;
+            }
+
+            for (const file of validFiles) {
+                try {
+                    const data = await processSingleFile(file);
+                    processedData.push(data);
+                } catch (err) {
+                    console.error("Error processing", file.name, err);
+                }
+            }
+
+            sortDataInternal();
+            updateStats();
+            checkContinuity();
+            renderCharts();
+            renderTable();
+            document.getElementById('analysisSection').classList.remove('hidden');
+        }
+
+        async function processSingleFile(file) {
+            const extension = file.name.split('.').pop().toLowerCase();
+            let content = '';
+            let title = '';
+            let date = '';
+            
+            // 解析資料夾名稱
+            let folder = "Root";
+            
+            // 優先使用遞迴掃描得到的 customPath
+            let fullPath = file.customPath || file.webkitRelativePath || file.name;
+            const parts = fullPath.split('/');
+            
+            if (parts.length > 1) {
+                // 取倒數第二層作為資料夾名 (e.g., Novel/Vol1/Ch1.md -> Vol1)
+                folder = parts[parts.length - 2];
+            }
+
+            // 讀取內容
+            if (extension === 'docx') {
+                const arrayBuffer = await readFileAsArrayBuffer(file);
+                const result = await mammoth.extractRawText({ arrayBuffer });
+                content = result.value;
+            } else {
+                const text = await readFileAsText(file);
+                const parsed = parseYaml(text);
+                content = parsed.content;
+                if (parsed.yaml) {
+                    title = parsed.yaml.title || '';
+                    date = parsed.yaml.date ? new Date(parsed.yaml.date).toISOString().split('T')[0] : '';
+                }
+            }
+
+            const counts = countWords(content);
+            const chapterMatch = file.name.match(/(\d+)/);
+            const chapterNum = chapterMatch ? parseInt(chapterMatch[1], 10) : null;
+
+            return {
+                id: Date.now() + Math.random(),
+                filename: file.name,
+                folder: folder,
+                title: title,
+                date: date,
+                cjkCount: counts.cjk,
+                engCount: counts.eng,
+                totalCount: counts.total,
+                chapterNum: chapterNum
+            };
+        }
+
+        // --- Helpers ---
+        function readFileAsText(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsText(file);
+            });
+        }
+
+        function readFileAsArrayBuffer(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
+        }
+
+        function parseYaml(text) {
+            const yamlRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/;
+            const match = text.match(yamlRegex);
+            if (match) {
+                try {
+                    return { yaml: jsyaml.load(match[1]), content: match[2] };
+                } catch (e) {
+                    return { yaml: null, content: text };
+                }
+            }
+            return { yaml: null, content: text };
+        }
+
+        function countWords(text) {
+            const cjkMatches = text.match(/[\u4E00-\u9FFF]/g) || [];
+            const engMatches = text.match(/[a-zA-Z0-9]+/g) || [];
+            return {
+                cjk: cjkMatches.length,
+                eng: engMatches.length,
+                total: cjkMatches.length + engMatches.length
+            };
+        }
+
+        function sortDataInternal() {
+            processedData.sort((a, b) => {
+                if (a.folder !== b.folder) return a.folder.localeCompare(b.folder, 'zh-Hant');
+                if (a.chapterNum !== null && b.chapterNum !== null) return a.chapterNum - b.chapterNum;
+                return a.filename.localeCompare(b.filename, 'zh-Hant');
+            });
+        }
+
+        // --- UI Updates ---
+        function updateStats() {
+            const totalFiles = processedData.length;
+            const totalWords = processedData.reduce((acc, curr) => acc + curr.totalCount, 0);
+            const avgWords = totalFiles > 0 ? Math.round(totalWords / totalFiles) : 0;
+            const folders = new Set(processedData.map(d => d.folder));
+
+            document.getElementById('statTotalFiles').textContent = totalFiles;
+            document.getElementById('statTotalWords').textContent = totalWords.toLocaleString();
+            document.getElementById('statAvgWords').textContent = avgWords.toLocaleString();
+            document.getElementById('statTotalFolders').textContent = folders.size;
+        }
+
+        function checkContinuity() {
+            const alertBox = document.getElementById('alertBox');
+            const alertMsg = document.getElementById('alertMsg');
+            
+            const groups = {};
+            processedData.forEach(d => {
+                if (!groups[d.folder]) groups[d.folder] = [];
+                if (d.chapterNum !== null) groups[d.folder].push(d.chapterNum);
+            });
+
+            const warnings = [];
+            for (const [folder, nums] of Object.entries(groups)) {
+                if (nums.length < 2) continue;
+                nums.sort((a, b) => a - b);
+                
+                const missing = [];
+                for (let i = 0; i < nums.length - 1; i++) {
+                    if (nums[i+1] !== nums[i] + 1) {
+                        for (let j = nums[i] + 1; j < nums[i+1]; j++) missing.push(j);
+                    }
+                }
+                if (missing.length > 0) {
+                    const showMissing = missing.slice(0, 5).join(', ') + (missing.length > 5 ? '...' : '');
+                    warnings.push(`[${folder}] 缺失編號: ${showMissing}`);
+                }
+            }
+
+            if (warnings.length > 0) {
+                alertMsg.innerHTML = warnings.join('<br>');
+                alertBox.classList.remove('hidden');
+            } else {
+                alertBox.classList.add('hidden');
+            }
+        }
+
+        function renderCharts() {
+            // 1. 準備資料夾統計數據
+            const folders = {};
+            processedData.forEach(d => {
+                if (!folders[d.folder]) folders[d.folder] = 0;
+                folders[d.folder] += d.totalCount;
+            });
+            const folderNames = Object.keys(folders);
+            
+            // 2. 圓餅圖數據 (始終依資料夾)
+            const pieLabels = folderNames;
+            const pieData = Object.values(folders);
+
+            // 3. 長條圖數據 (智慧切換)
+            let barLabels, barValues, barLabelTitle;
+            const barChartTitleEl = document.getElementById('barChartTitle');
+
+            if (folderNames.length > 2) {
+                // 模式 A: 資料夾 > 2 -> 依資料夾顯示
+                barLabelTitle = '各資料夾總字數';
+                barChartTitleEl.innerHTML = `<i class="fas fa-chart-bar mr-2"></i>各資料夾總字數趨勢`;
+                barLabels = folderNames;
+                barValues = Object.values(folders);
+            } else {
+                // 模式 B: 資料夾 <= 2 -> 依章節顯示 (Top 50)
+                barLabelTitle = '各章節字數';
+                barChartTitleEl.innerHTML = `<i class="fas fa-chart-bar mr-2"></i>各章節字數趨勢 (Top 50)`;
+                const displayLimit = 50;
+                const barDataSubset = processedData.slice(0, displayLimit);
+                barLabels = barDataSubset.map(d => `${d.filename} (${d.folder})`);
+                barValues = barDataSubset.map(d => d.totalCount);
+            }
+
+            if (barChartInstance) barChartInstance.destroy();
+            if (pieChartInstance) pieChartInstance.destroy();
+
+            const barCtx = document.getElementById('barChart').getContext('2d');
+            barChartInstance = new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                    labels: barLabels,
+                    datasets: [{
+                        label: barLabelTitle,
+                        data: barValues,
+                        backgroundColor: '#6366f1',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { ticks: { display: true } } }
+                }
+            });
+
+            const pieCtx = document.getElementById('pieChart').getContext('2d');
+            pieChartInstance = new Chart(pieCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: pieLabels,
+                    datasets: [{
+                        data: pieData,
+                        backgroundColor: [
+                            '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1', '#14b8a6'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            });
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            processedData.forEach((d, index) => {
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-gray-100 last:border-0 hover:bg-slate-50";
+                
+                tr.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td class="font-bold text-slate-700">${d.folder}</td>
+                    <td>${d.filename}</td>
+                    <td class="text-slate-600">${d.title || '-'}</td>
+                    <td class="text-xs text-slate-400 font-mono">${d.date || '-'}</td>
+                    <td class="text-right font-bold text-indigo-600 font-mono">${d.totalCount.toLocaleString()}</td>
+                    <td class="text-right text-xs text-slate-400 font-mono">${d.cjkCount.toLocaleString()}</td>
+                    <td class="text-right text-xs text-slate-400 font-mono">${d.engCount.toLocaleString()}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        let sortDir = 1;
+        function sortTable(key) {
+            sortDir *= -1;
+            processedData.sort((a, b) => {
+                let valA = a[key];
+                let valB = b[key];
+                if (key === 'words') { valA = a.totalCount; valB = b.totalCount; }
+                if (typeof valA === 'string') return valA.localeCompare(valB, 'zh-Hant') * sortDir;
+                return (valA - valB) * sortDir;
+            });
+            renderTable();
+        }
+
+        function exportCSV() {
+            if (processedData.length === 0) return;
+            let csv = "\uFEFF資料夾,檔名,標題,日期,總字數,中文字數,英文單字數\n";
+            processedData.forEach(d => {
+                const row = [
+                    d.folder, d.filename, `"${(d.title || '').replace(/"/g, '""')}"`, d.date, d.totalCount, d.cjkCount, d.engCount
+                ];
+                csv += row.join(',') + "\n";
+            });
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+            saveAs(blob, `novel_analysis_${new Date().toISOString().slice(0,10)}.csv`);
+        }
+
+        function clearAll() {
+            if (confirm('確定清空所有資料？')) {
+                processedData = [];
+                fileInput.value = '';
+                folderInput.value = '';
+                document.getElementById('analysisSection').classList.add('hidden');
+                document.getElementById('alertBox').classList.add('hidden');
+            }
+        }
+
+        function showLoading(show) {
+            const el = document.getElementById('loading');
+            if (show) el.classList.remove('hidden');
+            else el.classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>被動收入儀表板</title>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+:root{--bg:#0a0e14;--surface:#111827;--surface2:#1a2333;--border:#1f2d42;--accent:#f0b429;--accent2:#3ecf8e;--accent3:#60a5fa;--accent4:#a78bfa;--danger:#f87171;--text:#e2e8f0;--text-muted:#64748b;--text-dim:#94a3b8;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(240,180,41,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(240,180,41,.025) 1px,transparent 1px);background-size:60px 60px;pointer-events:none;z-index:0;}
+.container{max-width:1400px;margin:0 auto;padding:28px 20px;position:relative;z-index:1;}
+.header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:30px;gap:18px;flex-wrap:wrap;}
+.header-left h1{font-family:'DM Serif Display',serif;font-size:2.3rem;color:var(--accent);letter-spacing:-.02em;line-height:1.1;}
+.header-left p{color:var(--text-muted);font-size:.78rem;margin-top:5px;font-family:'DM Mono',monospace;}
+.total-badge{background:linear-gradient(135deg,#1a2333,#111827);border:1px solid var(--accent);border-radius:16px;padding:14px 22px;text-align:right;box-shadow:0 0 36px rgba(240,180,41,.07);}
+.total-badge .lbl{font-size:.7rem;color:var(--text-muted);font-family:'DM Mono',monospace;}
+.total-badge .val{font-family:'DM Mono',monospace;font-size:1.8rem;color:var(--accent);font-weight:500;}
+.total-badge .sub{font-size:.67rem;color:var(--text-muted);margin-top:2px;}
+.tabs{display:flex;gap:3px;margin-bottom:22px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:4px;width:fit-content;flex-wrap:wrap;}
+.tab-btn{padding:7px 17px;border:none;border-radius:8px;background:transparent;color:var(--text-muted);font-size:.8rem;font-family:'Noto Sans TC',sans-serif;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.tab-btn.active{background:var(--accent);color:#0a0e14;font-weight:700;}
+.section{display:none;}.section.active{display:block;}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px;}
+.grid-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px;}
+@media(max-width:900px){.grid-2{grid-template-columns:1fr;}.grid-stats{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:560px){.grid-stats{grid-template-columns:1fr;}.header-left h1{font-size:1.6rem;}}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;}
+.card-title{font-size:.7rem;color:var(--text-muted);font-family:'DM Mono',monospace;letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;gap:7px;}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--accent);display:inline-block;flex-shrink:0;}
+.dot.g{background:var(--accent2);}.dot.b{background:var(--accent3);}.dot.p{background:var(--accent4);}.dot.pk{background:#ec4899;}
+.threshold-list{display:flex;flex-direction:column;gap:11px;}
+.threshold-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+.threshold-label{font-size:.8rem;color:var(--text-dim);display:flex;align-items:center;gap:6px;}
+.tier-icon{font-size:.9rem;width:20px;text-align:center;}
+.threshold-amount{font-family:'DM Mono',monospace;font-size:.74rem;color:var(--text-muted);}
+.threshold-pct{font-family:'DM Mono',monospace;font-size:.85rem;font-weight:500;}
+.bar-track{height:6px;background:var(--surface2);border-radius:99px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:99px;transition:width .8s cubic-bezier(.4,0,.2,1);}
+.form-group label{display:block;font-size:.67rem;color:var(--text-muted);font-family:'DM Mono',monospace;margin-bottom:3px;letter-spacing:.05em;}
+input,select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:.8rem;padding:7px 10px;outline:none;transition:border .2s;}
+input:focus,select:focus{border-color:var(--accent);}
+select option{background:#1a2333;}
+.btn{padding:8px 15px;border:none;border-radius:8px;font-family:'Noto Sans TC',sans-serif;font-size:.8rem;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.btn-primary{background:var(--accent);color:#0a0e14;font-weight:700;}
+.btn-primary:hover{background:#f5c842;transform:translateY(-1px);}
+.btn-danger{background:transparent;border:1px solid var(--danger);color:var(--danger);padding:4px 9px;font-size:.72rem;}
+.btn-danger:hover{background:rgba(248,113,113,.1);}
+.scrollable{overflow-x:auto;}
+.data-table{width:100%;border-collapse:collapse;font-size:.78rem;min-width:860px;}
+.data-table th{font-family:'DM Mono',monospace;font-size:.64rem;color:var(--text-muted);letter-spacing:.07em;text-align:left;padding:6px 9px;border-bottom:1px solid var(--border);white-space:nowrap;}
+.data-table td{padding:8px 9px;border-bottom:1px solid rgba(31,45,66,.35);color:var(--text-dim);vertical-align:middle;}
+.data-table tr:last-child td{border-bottom:none;}
+.data-table tr:hover td{background:rgba(240,180,41,.02);}
+.ticker-badge{font-family:'DM Mono',monospace;font-weight:500;color:var(--accent3);font-size:.85rem;}
+.freq-badge{display:inline-block;padding:2px 7px;border-radius:99px;font-size:.64rem;font-family:'DM Mono',monospace;}
+.fm{background:rgba(62,207,142,.15);color:var(--accent2);}
+.f2m{background:rgba(96,165,250,.15);color:var(--accent3);}
+.fq{background:rgba(240,180,41,.15);color:var(--accent);}
+.fh{background:rgba(167,139,250,.15);color:var(--accent4);}
+.fy{background:rgba(248,113,113,.15);color:var(--danger);}
+.tag-overseas{display:inline-block;padding:1px 5px;border-radius:4px;font-size:.6rem;font-family:'DM Mono',monospace;background:rgba(167,139,250,.15);color:var(--accent4);margin-left:3px;vertical-align:middle;}
+.mini-bar-wrap{display:flex;align-items:center;gap:5px;}
+.mini-bar-track{flex:1;height:4px;background:var(--surface2);border-radius:99px;overflow:hidden;min-width:50px;}
+.mini-bar-fill{height:100%;border-radius:99px;transition:width .6s;}
+.mini-pct{font-family:'DM Mono',monospace;font-size:.68rem;min-width:38px;text-align:right;}
+.monthly-chart{display:flex;gap:4px;align-items:flex-end;height:120px;}
+.month-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;height:100%;justify-content:flex-end;position:relative;}
+.month-stack{width:100%;display:flex;flex-direction:column;border-radius:4px 4px 0 0;overflow:hidden;cursor:pointer;transition:opacity .15s;}
+.month-stack:hover{opacity:.85;}
+.seg-ins{background:var(--accent2);}
+.seg-cg{background:var(--accent4);}
+.seg-stock{background:var(--accent);}
+.month-label{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--text-muted);}
+.tt{position:fixed;background:#182030;border:1px solid var(--border);border-radius:10px;padding:10px 13px;font-size:.76rem;pointer-events:none;z-index:9999;opacity:0;transition:opacity .12s;box-shadow:0 8px 28px rgba(0,0,0,.5);min-width:145px;}
+.tt.show{opacity:1;}
+.tt-title{font-family:'DM Mono',monospace;font-weight:500;color:var(--text);margin-bottom:7px;font-size:.78rem;border-bottom:1px solid var(--border);padding-bottom:5px;}
+.tt-row{display:flex;justify-content:space-between;gap:14px;margin-bottom:3px;}
+.tt-lbl{color:var(--text-muted);}
+.tt-val{font-family:'DM Mono',monospace;font-weight:500;}
+.legend-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px;}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:.7rem;color:var(--text-muted);font-family:'DM Mono',monospace;}
+.legend-dot{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
+.heat-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:4px;}
+.heat-cell{border-radius:7px;padding:8px 3px;text-align:center;cursor:pointer;transition:transform .15s;}
+.heat-cell:hover{transform:scale(1.08);position:relative;z-index:2;box-shadow:0 4px 12px rgba(0,0,0,0.3);}
+.stat-num{font-family:'DM Serif Display',serif;font-size:1.9rem;color:var(--accent);line-height:1;}
+.stat-sub{font-size:.7rem;color:var(--text-muted);font-family:'DM Mono',monospace;margin-top:2px;}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;justify-content:center;align-items:center;z-index:10000;opacity:0;pointer-events:none;transition:opacity .2s;backdrop-filter:blur(3px);}
+.modal-overlay.show{opacity:1;pointer-events:auto;}
+.modal-content{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:90%;max-width:460px;max-height:80vh;overflow-y:auto;padding:24px;box-shadow:0 20px 40px rgba(0,0,0,.5);transform:translateY(10px);transition:transform .2s;}
+.modal-overlay.show .modal-content{transform:translateY(0);}
+.modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:12px;}
+.modal-title{font-size:1.1rem;color:var(--text);font-family:'Noto Sans TC',sans-serif;font-weight:700;display:flex;align-items:center;gap:8px;}
+.modal-close{background:transparent;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer;transition:color .2s;}
+.modal-close:hover{color:var(--danger);}
+.detail-item{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(31,45,66,.4);font-family:'DM Mono',monospace;font-size:.85rem;align-items:center;}
+.detail-item:last-child{border-bottom:none;}
+.gap-card{background:linear-gradient(135deg,var(--surface),#0f1d2f);border:1px solid var(--accent3);border-radius:16px;padding:24px;margin-bottom:18px;}
+.milestone-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:9px;margin-top:12px;}
+.milestone-card{background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:13px;text-align:center;position:relative;transition:all .3s;}
+.milestone-card.reached{border-color:var(--accent2);background:rgba(62,207,142,.05);}
+.milestone-card.reached::before{content:'✓';position:absolute;top:6px;right:8px;color:var(--accent2);font-size:.72rem;font-weight:700;}
+.m-lbl{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--text-muted);margin-bottom:4px;}
+.m-val{font-family:'DM Mono',monospace;font-size:.95rem;font-weight:500;color:var(--text);}
+.milestone-card.reached .m-val{color:var(--accent2);}
+.m-gap{font-size:.63rem;color:var(--text-muted);margin-top:2px;font-family:'DM Mono',monospace;}
+.milestone-card.reached .m-gap{color:var(--accent2);}
+.empty-state{text-align:center;padding:26px;color:var(--text-muted);font-size:.8rem;font-family:'DM Mono',monospace;}
+.info-chip{display:inline-flex;align-items:center;gap:5px;background:rgba(96,165,250,.07);border:1px solid rgba(96,165,250,.17);border-radius:99px;padding:3px 11px;font-size:.68rem;color:var(--accent3);font-family:'DM Mono',monospace;margin-bottom:12px;}
+.add-form{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:7px;align-items:end;margin-bottom:6px;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(9px);}to{opacity:1;transform:translateY(0);}}
+.card,.gap-card{animation:fadeIn .32s ease both;}
+.card:nth-child(2){animation-delay:.04s;}.card:nth-child(3){animation-delay:.08s;}
+
+.sortable { cursor: pointer; user-select: none; transition: color .2s; }
+.sortable:hover { color: var(--text); }
+.sort-icon { display: inline-block; width: 10px; opacity: 0.3; font-size: 0.6rem; margin-left:2px; transition: opacity .2s; }
+.sortable.asc .sort-icon::after { content: '▲'; }
+.sortable.desc .sort-icon::after { content: '▼'; }
+.sortable.asc .sort-icon, .sortable.desc .sort-icon { opacity: 1; }
+::-webkit-scrollbar{width:4px;height:4px;}::-webkit-scrollbar-track{background:transparent;}::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px;}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+<div class="tt" id="tt"></div>
+<!-- MODAL -->
+<div class="modal-overlay" id="detailsModal" onclick="if(event.target===this) closeModal()">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle"><span class="dot b"></span> 月份明細</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modalBody"></div>
+  </div>
+</div>
+<div class="container">
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-left">
+    <h1>被動收入儀表板</h1>
+    <p>PASSIVE INCOME TRACKER · 財務自由進度</p>
+  </div>
+  <div class="total-badge">
+    <div class="lbl">預估月均被動收入</div>
+    <div class="val" id="headerTotal">$0</div>
+    <div class="sub" id="headerSub">股息 $0 ＋ 保險 $0</div>
+  </div>
+</div>
+
+<!-- TABS -->
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:22px;flex-wrap:wrap;gap:12px;">
+  <div class="tabs" style="margin-bottom:0;">
+    <button class="tab-btn active" onclick="switchTab('overview',this)">📊 總覽</button>
+    <button class="tab-btn" onclick="switchTab('stocks',this)">📈 持股管理</button>
+    <button class="tab-btn" onclick="switchTab('insurance',this)">🛡️ 保險收入</button>
+    <button class="tab-btn" onclick="switchTab('cg',this)">💰 價差收入</button>
+    <button class="tab-btn" onclick="switchTab('gap',this)">🎯 目標試算</button>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center;">
+    <label style="cursor:pointer;display:flex;align-items:center;gap:6px;font-size:.8rem;color:var(--text);background:var(--surface2);padding:6px 12px;border-radius:8px;border:1px solid var(--border);transition:all .2s;" onmouseover="this.style.borderColor='var(--accent4)'" onmouseout="this.style.borderColor='var(--border)'">
+      <input type="checkbox" id="toggleCG" onchange="handleToggleCG()" style="width:15px;height:15px;accent-color:var(--accent4);margin:0;"> 💰 統計包含價差
+    </label>
+    <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImport(event)">
+    <button class="btn" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);" onclick="document.getElementById('importFile').click()">📥 匯入</button>
+    <button class="btn" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);" onclick="exportData()">📤 匯出備份</button>
+  </div>
+</div>
+
+<!-- ██████████ OVERVIEW ██████████ -->
+<div class="section active" id="section-overview">
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title"><span class="dot"></span> 月收入門檻達成狀況</div>
+      <div id="achievedBadges" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;"></div>
+      <div class="threshold-list" id="thresholdList"></div>
+    </div>
+    <div class="card" id="monthlyChartCard">
+      <div class="card-title" style="justify-content:space-between;">
+        <div><span class="dot b"></span> 每月被動收入分佈</div>
+        <button class="btn" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:4px 10px;" onclick="exportChartImage('monthlyChartCard', 'monthly-chart')">📸 另存圖片</button>
+      </div>
+      <div class="legend-row">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div>股息收入</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div>保險收入</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent4)"></div>價差平均</div>
+      </div>
+      <div class="monthly-chart" id="monthlyChart"></div>
+      <div style="display:flex;justify-content:space-between;margin-top:14px;">
+        <div><div class="stat-num" id="annualTotal">$0</div><div class="stat-sub">年度股息總收入</div></div>
+        <div style="text-align:right"><div class="stat-num" id="avgMonthly" style="color:var(--accent2)">$0</div><div class="stat-sub">月均被動收入（含保險）</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="grid-stats">
+    <div class="card"><div class="card-title"><span class="dot"></span> 股息月均</div><div class="stat-num" id="sumStock">$0</div><div class="stat-sub">依配息頻率換算</div></div>
+    <div class="card"><div class="card-title"><span class="dot g"></span> 保險月均</div><div class="stat-num" id="sumInsurance" style="color:var(--accent2)">$0</div><div class="stat-sub">各保單月均攤</div></div>
+    <div class="card"><div class="card-title"><span class="dot p"></span> 價差月均</div><div class="stat-num" id="sumCG" style="color:var(--accent4)">$0</div><div class="stat-sub">歷史平均攤提</div></div>
+    <div class="card"><div class="card-title"><span class="dot b"></span> 合計月均</div><div class="stat-num" id="sumTotal" style="color:var(--accent3)">$0</div><div class="stat-sub">距下一門檻 <span id="nextTarget" style="color:var(--accent)">—</span></div></div>
+  </div>
+  <div class="card" id="heatGridCard">
+    <div class="card-title" style="justify-content:space-between;">
+      <div><span class="dot"></span> 月份收入熱力圖（股息 ＋ 保險 ＋ 價差，hover 查看明細）</div>
+      <button class="btn" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:4px 10px;" onclick="exportChartImage('heatGridCard', 'heat-grid')">📸 另存圖片</button>
+    </div>
+    <div class="heat-grid" id="heatGrid"></div>
+  </div>
+</div>
+
+<!-- ██████████ STOCKS ██████████ -->
+<div class="section" id="section-stocks">
+  <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;align-items:flex-start;">
+    <div class="info-chip" style="margin-bottom:0;">💡 持股數以「股」為單位（1張 = 1000股）；目標張數用於達成率與單次上限預估</div>
+    <div class="info-chip" style="margin-bottom:0;">💡 選擇「海外」標的時 54C 將自動設為 0；海外所得免稅門檻為 750 萬/年，一般投資人幾乎不會達標</div>
+  </div>
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title"><span class="dot"></span> 新增持股</div>
+    <div class="add-form">
+      <div class="form-group"><label>代號</label><input type="text" id="stkTicker" placeholder="00927"></div>
+      <div class="form-group"><label>現有持股 (股)</label><input type="number" id="stkShares" placeholder="1000" min="0"></div>
+      <div class="form-group"><label>目標張數 (張)</label><input type="number" id="stkTarget" placeholder="20" min="0"></div>
+      <div class="form-group"><label>每次配息 (元/股)</label><input type="number" id="stkDiv" placeholder="0.94" step="0.001" min="0"></div>
+      <div class="form-group"><label>配息頻率</label>
+        <select id="stkFreq">
+          <option value="m">月配 (每月)</option>
+          <option value="2m">雙月配 (1,3,5,7,9,11)</option>
+          <option value="q1">季配① (1/4/7/10)</option>
+          <option value="q2">季配② (2/5/8/11)</option>
+          <option value="q3" selected>季配③ (3/6/9/12)</option>
+          <option value="h1">半年① (1/7)</option>
+          <option value="h2">半年② (6/12)</option>
+          <option value="y1">年配 (1月)</option>
+          <option value="y2">年配 (2月)</option>
+          <option value="y3">年配 (3月)</option>
+          <option value="y4">年配 (4月)</option>
+          <option value="y5">年配 (5月)</option>
+          <option value="y6">年配 (6月)</option>
+          <option value="y7">年配 (7月)</option>
+          <option value="y8">年配 (8月)</option>
+          <option value="y9">年配 (9月)</option>
+          <option value="y10">年配 (10月)</option>
+          <option value="y11">年配 (11月)</option>
+          <option value="y12">年配 (12月)</option>
+        </select>
+      </div>
+      <div class="form-group"><label>54C 比例 (%)</label><input type="number" id="stk54c" placeholder="0" step="1" min="0" max="100" value="0"></div>
+      <div class="form-group"><label>標的類型</label>
+        <select id="stkOverseas" onchange="handleOverseasChange()"><option value="0">國內</option><option value="1">海外</option></select>
+      </div>
+      <div style="align-self:end;"><button class="btn btn-primary" onclick="addStock()" style="width:100%;padding:7px 0">新增</button></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="justify-content:space-between;">
+      <div><span class="dot b"></span> 持股列表</div>
+      <div>
+        <button class="btn" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:4px 10px;margin-right:8px;" onclick="exportStocksCSV()">📥 匯出 CSV</button>
+        <button class="btn btn-danger" style="padding:4px 10px;" onclick="clearAllStocks()">清空全部</button>
+      </div>
+    </div>
+    <div class="scrollable">
+      <table class="data-table">
+        <thead><tr>
+          <th class="sortable" onclick="sortData('stockList', 'ticker', this)">代號 <span class="sort-icon"></span></th><th class="sortable" onclick="sortData('stockList', 'shares', this)">現有(股) <span class="sort-icon"></span></th><th class="sortable" onclick="sortData('stockList', 'targetLots', this)">目標(張) <span class="sort-icon"></span></th><th class="sortable" onclick="sortData('stockList', 'pct', this)">持股達成率 <span class="sort-icon"></span></th>
+          <th class="sortable" onclick="sortData('stockList', 'div', this)">每次配息/股 <span class="sort-icon"></span></th><th class="sortable" onclick="sortData('stockList', 'freq', this)">頻率 <span class="sort-icon"></span></th><th class="sortable" onclick="sortData('stockList', 'annual', this)">年度收益 <span class="sort-icon"></span></th><th class="sortable" onclick="sortData('stockList', 'monthly', this)">月均 <span class="sort-icon"></span></th>
+          <th class="sortable" onclick="sortData('stockList', 'c54', this)">54C <span class="sort-icon"></span></th><th></th>
+        </tr></thead>
+        <tbody id="stkBody"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="stkEmpty">尚未新增任何持股</div>
+  </div>
+</div>
+
+<!-- ██████████ INSURANCE ██████████ -->
+<div class="section" id="section-insurance">
+  <div class="info-chip">🛡️ 輸入領取月份（逗號分隔，如 1,5 或 3,6,9,12），可在總覽精確顯示每月現金流</div>
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title"><span class="dot g"></span> 新增保險收入</div>
+    <div class="add-form">
+      <div class="form-group"><label>保單名稱</label><input type="text" id="insName" placeholder="增額終身壽"></div>
+      <div class="form-group"><label>每次金額 (元)</label><input type="number" id="insAmount" placeholder="5000" min="0"></div>
+      <div class="form-group"><label>類型</label>
+        <select id="insType"><option value="survival">生存金</option><option value="annuity">年金</option><option value="dividend">保單配息</option><option value="other">其他</option></select>
+      </div>
+      <div class="form-group"><label>領取月份（逗號分隔）</label><input type="text" id="insMonths" placeholder="1 或 1,5 或 3,6,9,12"></div>
+      <div class="form-group"><label>備註</label><input type="text" id="insNote" placeholder="65歲起給付"></div>
+      <div style="align-self:end;"><button class="btn btn-primary" onclick="addInsurance()" style="width:100%;padding:7px 0">新增</button></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title" style="justify-content:space-between;">
+      <div><span class="dot g"></span> 保險收入列表</div>
+      <div>
+        <button class="btn" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:4px 10px;margin-right:8px;" onclick="exportInsuranceCSV()">📥 匯出 CSV</button>
+        <button class="btn btn-danger" style="padding:4px 10px;" onclick="clearAllInsurance()">清空全部</button>
+      </div>
+    </div>
+    <div class="scrollable">
+      <table class="data-table" style="min-width:640px;">
+        <thead><tr>
+          <th class="sortable" onclick="sortData('insuranceList', 'name', this)">名稱 <span class="sort-icon"></span></th><th class="sortable" onclick="sortData('insuranceList', 'type', this)">類型 <span class="sort-icon"></span></th><th class="sortable" onclick="sortData('insuranceList', 'amount', this)">每次金額 <span class="sort-icon"></span></th><th>領取月份</th>
+          <th class="sortable" onclick="sortData('insuranceList', 'annualIns', this)">年度總計 <span class="sort-icon"></span></th><th>月均攤</th><th>備註</th><th></th>
+        </tr></thead>
+        <tbody id="insBody"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="insEmpty">尚未新增保險收入</div>
+  </div>
+</div>
+
+<!-- ██████████ CAPITAL GAINS ██████████ -->
+<div class="section" id="section-cg">
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title"><span class="dot p"></span> 新增價差紀錄</div>
+    <div class="add-form">
+      <div class="form-group"><label>年份</label><input type="number" id="cgYear" placeholder="2025" min="2000"></div>
+      <div class="form-group"><label>月份</label>
+        <select id="cgMonth"><option value="1">1月</option><option value="2">2月</option><option value="3">3月</option><option value="4">4月</option><option value="5">5月</option><option value="6">6月</option><option value="7">7月</option><option value="8">8月</option><option value="9">9月</option><option value="10">10月</option><option value="11">11月</option><option value="12">12月</option></select>
+      </div>
+      <div class="form-group"><label>收入金額 (元)</label><input type="number" id="cgAmount" placeholder="15000"></div>
+          <div class="form-group"><label>報酬率 (%)</label><input type="number" id="cgRoi" placeholder="12.5" step="0.1"></div>
+      <div class="form-group"><label>備註標的</label><input type="text" id="cgNote" placeholder="賣出 0050"></div>
+      <div style="align-self:end;"><button class="btn btn-primary" onclick="addCG()" style="width:100%;padding:7px 0">新增</button></div>
+    </div>
+  </div>
+  <div class="card">
+        <div class="card-title" style="justify-content:space-between;">
+          <div><span class="dot p"></span> 價差紀錄列表</div>
+          <div>
+            <button class="btn" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:4px 10px;margin-right:8px;" onclick="exportCGCSV()">📥 匯出 CSV</button>
+            <button class="btn btn-danger" style="padding:4px 10px;" onclick="clearAllCG()">清空全部</button>
+          </div>
+        </div>
+    <div class="scrollable">
+      <table class="data-table">
+        <thead><tr>
+              <th class="sortable" onclick="sortData('capitalGainsList', 'year', this)">年月 <span class="sort-icon"></span></th>
+              <th class="sortable" onclick="sortData('capitalGainsList', 'amount', this)">金額 <span class="sort-icon"></span></th>
+              <th class="sortable" onclick="sortData('capitalGainsList', 'roi', this)">報酬率 <span class="sort-icon"></span></th>
+              <th>備註</th><th></th>
+        </tr></thead>
+        <tbody id="cgBody"></tbody>
+      </table>
+    </div>
+    <div class="empty-state" id="cgEmpty">尚未新增價差紀錄</div>
+  </div>
+</div>
+
+<!-- ██████████ GAP ██████████ -->
+<div class="section" id="section-gap">
+  <div class="gap-card">
+    <div class="card-title"><span class="dot b"></span> 資產目標差異分析</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;">
+      <div class="form-group" style="flex:1;min-width:160px;"><label>目前資產總額 (元) <span style="font-size:0.6rem;cursor:pointer;color:var(--accent3);background:rgba(96,165,250,.1);padding:2px 6px;border-radius:4px;margin-left:4px;" onclick="addAsset100k()">+10萬</span></label><input type="number" id="gapAsset" placeholder="2500000" step="100000" oninput="calcGap()" onchange="calcGap()"></div>
+      <div class="form-group" style="flex:1;min-width:140px;"><label>每月預計投入 (元)</label><input type="number" id="gapPmt" placeholder="20000" step="1000" oninput="calcGap()"></div>
+      <div class="form-group" style="flex:1;min-width:130px;"><label>預期年化報酬率 (%)</label><input type="number" id="gapRate" value="4.5" step="0.1" oninput="calcGap()"></div>
+    </div>
+    <div id="gapResult" style="display:none">
+      <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:12px;">
+        <div><div class="stat-sub">現有被動月均</div><div class="stat-num" id="gapCurrent">$0</div></div>
+        <div><div class="stat-sub">資產投資月均 (估)</div><div class="stat-num" id="gapAssetIncome" style="color:var(--accent2)">$0</div></div>
+      </div>
+      <div class="card-title" style="margin:0 0 9px"><span class="dot"></span> 資產里程碑</div>
+      <div class="milestone-grid" id="milestoneGrid"></div>
+      <div id="gapSuggestion" style="display:none;"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title"><span class="dot g"></span> 月收入目標 vs 現況</div>
+    <div class="threshold-list" id="thresholdList2"></div>
+  </div>
+</div>
+
+</div><!-- /container -->
+<script>
+  // ════════════════════════════════════════════════
+  // 📝 預設資料 (在此修改初始資料，方便尋找)
+  // ════════════════════════════════════════════════
+  let stockList = [
+    { id: 1, ticker: '00927(群益半導體收益)', shares: 1000, targetLots: 10, div: 0.94, freq: 'q1', overseas: false, c54: 70 },
+    { id: 2, ticker: '00878(國泰永續高股息)', shares: 13486, targetLots: 20, div: 0.5, freq: 'q2', overseas: false, c54: 70 },
+    { id: 3, ticker: '00918(大華優利高填息30)', shares: 15233, targetLots: 30, div: 0.62, freq: 'q3', overseas: false, c54: 70 },
+    { id: 4, ticker: '00981T(平衡凱基雙核收息)', shares: 50179, targetLots: 50, div: 0.065, freq: 'm', overseas: true, c54: 0 },
+    { id: 5, ticker: '00858(永豐美國500大)', shares: 9311, targetLots: 15, div: 1.4, freq: 'h1', overseas: true, c54: 0 },
+    { id: 6, ticker: '2885(元大金)', shares: 11042, targetLots: 11, div: 2.2, freq: 'y7', overseas: false, c54: 100 },
+    { id: 7, ticker: '2884(玉山金)', shares: 6311, targetLots: 6.2, div: 1.4, freq: 'y7', overseas: false, c54: 100 },
+    { id: 8, ticker: '2330(台積電)', shares: 50, targetLots: 0.2, div: 7, freq: 'q3', overseas: false, c54: 100 },
+    { id: 9, ticker: '0052(富邦科技)', shares: 1208, targetLots: 20, div: 1.199, freq: 'y4', overseas: false, c54: 30 },
+    { id: 10, ticker: '2404(漢唐)', shares: 200, targetLots: 0.5, div: 40, freq: 'y7', overseas: false, c54: 100 },
+    { id: 11, ticker: '2454(聯發科)', shares: 200, targetLots: 0.3, div: 24.7, freq: 'y1', overseas: false, c54: 100 },
+    { id: 12, ticker: '5403(中菲)', shares: 1000, targetLots: 0, div: 6.5, freq: 'y4', overseas: false, c54: 100 },
+    { id: 13, ticker: '1210(大成)', shares: 6000, targetLots: 6, div: 3, freq: 'y8', overseas: false, c54: 100 },
+    { id: 14, ticker: '1217(興農)', shares: 3000, targetLots: 2, div: 2.5, freq: 'y3', overseas: false, c54: 100 },
+    { id: 15, ticker: '6757(虎航)', shares: 1000, targetLots: 1, div: 2.4, freq: 'y9', overseas: false, c54: 100 },
+    { id: 16, ticker: '6274(台燿)', shares: 200, targetLots: 0.5, div: 7.5, freq: 'y7', overseas: false, c54: 100 },
+    { id: 17, ticker: '2449(京元電)', shares: 1840, targetLots: 2, div: 1.5, freq: 'y8', overseas: false, c54: 100 },
+  ];
+  let insuranceList = [
+    { id: 1, name: '保險1', amount: 5000, type: 'survival', months: [1], note: '每年1月領取' },
+    { id: 2, name: '保險2', amount: 24000, type: 'survival', months: [5], note: '每年5月領取' },
+  ];
+  let capitalGainsList = [
+    { id: 1, year: 2026, month: 1, amount: 84016, roi: 15.2, note: '價差收入' },
+    { id: 2, year: 2026, month: 2, amount: 12013, roi: 8.5, note: '價差收入' },
+    { id: 3, year: 2026, month: 3, amount: 52877, roi: 21.0, note: '價差收入' },
+    { id: 4, year: 2026, month: 4, amount: 97279, roi: 18.3, note: '價差收入' },
+    { id: 5, year: 2026, month: 5, amount: 29346, roi: 5.4, note: '價差收入' },
+  ];
+  let nextId = 20;
+  let enableCG = false; // 預設統計不含價差
+  let sortState = { list: '', key: '', dir: 1 };
+
+  // ════════════════════════════════════════════════
+  // CONFIG
+  // ════════════════════════════════════════════════
+  const CONFIG = {
+    thresholds: [10000, 20000, 30000, 40000, 50000],
+    assetMilestones: [1000000, 3000000, 5000000, 7000000, 10000000, 15000000, 20000000],
+    achievedDates: { 1000000: '2016', 3000000: '2022', 5000000: '2025', 7000000: '2026' },
+    singlePayoutLimit: 20000,
+    freqMap: { m: 12, '2m': 6, q1: 4, q2: 4, q3: 4, h1: 2, h2: 2, y1: 1, y2: 1, y3: 1, y4: 1, y5: 1, y6: 1, y7: 1, y8: 1, y9: 1, y10: 1, y11: 1, y12: 1 },
+    freqLabel: { m: '月配', '2m': '雙月配', q1: '季配①', q2: '季配②', q3: '季配③', h1: '半年①', h2: '半年②', y1: '年配(1月)', y2: '年配(2月)', y3: '年配(3月)', y4: '年配(4月)', y5: '年配(5月)', y6: '年配(6月)', y7: '年配(7月)', y8: '年配(8月)', y9: '年配(9月)', y10: '年配(10月)', y11: '年配(11月)', y12: '年配(12月)' },
+    freqClass: { m: 'fm', '2m': 'f2m', q1: 'fq', q2: 'fq', q3: 'fq', h1: 'fh', h2: 'fh', y1: 'fy', y2: 'fy', y3: 'fy', y4: 'fy', y5: 'fy', y6: 'fy', y7: 'fy', y8: 'fy', y9: 'fy', y10: 'fy', y11: 'fy', y12: 'fy' },
+    freqMonths: {
+      m: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      '2m': [1, 3, 5, 7, 9, 11],
+      q1: [1, 4, 7, 10], q2: [2, 5, 8, 11], q3: [3, 6, 9, 12],
+      h1: [1, 7], h2: [6, 12],
+      y1: [1], y2: [2], y3: [3], y4: [4], y5: [5], y6: [6], y7: [7], y8: [8], y9: [9], y10: [10], y11: [11], y12: [12]
+    }
+  };
+
+  document.getElementById('cgYear').value = new Date().getFullYear();
+
+  // ════════════════════════════════════════════════
+  // CALC
+  // ════════════════════════════════════════════════
+  function calcStockAnnual(s) { return s.shares * s.div * CONFIG.freqMap[s.freq]; }
+  function calcStockMonthly(s) { return calcStockAnnual(s) / 12; }
+  function calcAchievePct(s) { return s.targetLots > 0 ? Math.min(100, (s.shares / (s.targetLots * 1000)) * 100) : null; }
+  function calcTargetPayout(s) { return s.targetLots > 0 ? s.targetLots * 1000 * s.div : null; }
+
+  function handleToggleCG() {
+    enableCG = document.getElementById('toggleCG').checked;
+    renderAll();
+  }
+
+  function getCGStats() {
+    if (!capitalGainsList.length) return { cgMonthly: 0, cgMonthArray: new Array(12).fill(0) };
+    let minYear = Math.min(...capitalGainsList.map(c => c.year));
+    let maxYear = Math.max(...capitalGainsList.map(c => c.year));
+    let years = Math.max(1, maxYear - minYear + 1);
+    let total = capitalGainsList.reduce((sum, c) => sum + c.amount, 0);
+    let cgMonthly = total / (years * 12);
+    let cgMonthArray = new Array(12).fill(cgMonthly); // 將歷史平均攤提到每一個月顯示
+    return { cgMonthly, cgMonthArray };
+  }
+
+  function getMonthBreakdown() {
+    const stock = new Array(12).fill(0);
+    const ins = new Array(12).fill(0);
+    stockList.forEach(s => CONFIG.freqMonths[s.freq].forEach(m => { stock[m - 1] += s.shares * s.div; }));
+    insuranceList.forEach(i => i.months.forEach(m => { ins[m - 1] += i.amount; }));
+    const { cgMonthArray } = getCGStats();
+    const actualCGArray = enableCG ? cgMonthArray : new Array(12).fill(0);
+    return { stock, ins, cg: actualCGArray };
+  }
+
+  function getTotals() {
+    const sm = stockList.reduce((a, s) => a + calcStockMonthly(s), 0);
+    const ia = insuranceList.reduce((a, i) => a + i.amount * i.months.length, 0);
+    const { cgMonthly } = getCGStats();
+    const actualCG = enableCG ? cgMonthly : 0;
+    return { stockMonthly: sm, insMonthly: ia / 12, cgMonthly, actualCG, total: sm + ia / 12 + actualCG, insAnnual: ia };
+  }
+
+  // ════════════════════════════════════════════════
+  // FORMAT
+  // ════════════════════════════════════════════════
+  const fmt = n => '$' + Math.round(n).toLocaleString();
+  const fmtK = n => n >= 1000000 ? (n / 1e6).toFixed(0) + 'M' : n >= 1000 ? (n / 1000).toFixed(0) + 'K' : n.toFixed(0);
+  const MN = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+  const TL = { survival: '生存金', annuity: '年金', dividend: '保單配息', other: '其他' };
+
+  function hexRGB(h) {
+    return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)].join(',');
+  }
+
+  // ════════════════════════════════════════════════
+  // TOOLTIP
+  // ════════════════════════════════════════════════
+  const ttEl = document.getElementById('tt');
+  let ttActive = false;
+  function showTT(e, html) { ttEl.innerHTML = html; ttEl.classList.add('show'); ttActive = true; positionTT(e); }
+  function hideTT() { ttEl.classList.remove('show'); ttActive = false; }
+  function positionTT(e) {
+    let x = e.clientX + 14, y = e.clientY - 10;
+    if (x + 200 > window.innerWidth) x = e.clientX - 215;
+    if (y + 160 > window.innerHeight) y = e.clientY - 130;
+    ttEl.style.left = x + 'px'; ttEl.style.top = y + 'px';
+  }
+  document.addEventListener('mousemove', e => { if (ttActive) positionTT(e); });
+
+  function ttMonthHtml(i, sv, iv, cv) {
+    const tot = sv + iv + cv;
+    const sp = tot > 0 ? (sv / tot * 100).toFixed(0) : 0;
+    const ip = tot > 0 ? (iv / tot * 100).toFixed(0) : 0;
+    const cp = tot > 0 ? (cv / tot * 100).toFixed(0) : 0;
+    return `<div class="tt-title">${MN[i]} 被動收入明細</div>
+<div class="tt-row"><span class="tt-lbl">📊 股息</span><span class="tt-val" style="color:var(--accent)">${fmt(sv)} (${sp}%)</span></div>
+<div class="tt-row"><span class="tt-lbl">🛡️ 保險</span><span class="tt-val" style="color:var(--accent2)">${fmt(iv)} (${ip}%)</span></div>
+${cv > 0 ? `<div class="tt-row"><span class="tt-lbl">💰 價差</span><span class="tt-val" style="color:var(--accent4)">${fmt(cv)} (${cp}%)</span></div>` : ''}
+<div class="tt-row" style="border-top:1px solid var(--border);padding-top:5px;margin-top:3px"><span class="tt-lbl">合計</span><span class="tt-val">${fmt(tot)}</span></div>`;
+  }
+
+  // ════════════════════════════════════════════════
+  // RENDER ALL
+  // ════════════════════════════════════════════════
+  function renderAll() {
+    const { stockMonthly, insMonthly, cgMonthly, actualCG, total } = getTotals();
+    document.getElementById('headerTotal').textContent = fmt(total);
+    document.getElementById('headerSub').textContent = enableCG 
+      ? `股息 ${fmt(stockMonthly)} ＋ 保險 ${fmt(insMonthly)} ＋ 價差 ${fmt(actualCG)}`
+      : `股息 ${fmt(stockMonthly)} ＋ 保險 ${fmt(insMonthly)}`;
+    document.getElementById('sumStock').textContent = fmt(stockMonthly);
+    document.getElementById('sumInsurance').textContent = fmt(insMonthly);
+    document.getElementById('sumCG').textContent = fmt(cgMonthly);
+    document.getElementById('sumTotal').textContent = fmt(total);
+
+    // 更新價差卡片的視覺狀態
+    const cgCard = document.getElementById('sumCG').closest('.card');
+    const cgSub = cgCard.querySelector('.stat-sub');
+    if (enableCG) {
+      cgCard.style.opacity = '1';
+      cgSub.textContent = '歷史平均攤提';
+    } else {
+      cgCard.style.opacity = '0.4';
+      cgSub.textContent = '未計入總額';
+    }
+
+    const annStock = stockList.reduce((a, s) => a + calcStockAnnual(s), 0);
+    document.getElementById('annualTotal').textContent = fmt(annStock);
+    document.getElementById('avgMonthly').textContent = fmt(total);
+    const next = CONFIG.thresholds.find(t => t > total);
+    document.getElementById('nextTarget').textContent = next ? `差 ${fmt(next - total)}` : '已達最高門檻 🎉';
+    renderThresholds(total);
+    renderMonthlyChart();
+    renderHeatGrid();
+    renderStockTable();
+    renderInsuranceTable();
+    renderCGTable();
+    calcGap();
+  }
+
+  // ════════════════════════════════════════════════
+  function renderThresholds(total) {
+    const emojis = ['🌱', '🌿', '🌳', '🏆', '👑'];
+    const colors = ['#f0b429', '#f0b429', '#3ecf8e', '#3ecf8e', '#60a5fa'];
+    let badgesHtml = '';
+    let barsHtml = '';
+
+    CONFIG.thresholds.forEach((t, i) => {
+      const pct = Math.min(100, (total / t) * 100);
+      const ok = total >= t;
+      if (ok) {
+        badgesHtml += `<div class="info-chip" style="background:rgba(${hexRGB(colors[i])},.15);border-color:rgba(${hexRGB(colors[i])},.3);color:${colors[i]};font-weight:bold;margin-bottom:0;">${emojis[i]} 月領 ${fmtK(t)} 達成</div>`;
+      } else {
+        const col = `rgba(${hexRGB(colors[i])},.35)`;
+        barsHtml += `<div class="threshold-item">
+<div class="threshold-header">
+  <div class="threshold-label"><span class="tier-icon">${emojis[i]}</span>月領 ${fmtK(t)} 門檻</div>
+  <div style="display:flex;align-items:center;gap:9px;">
+    <span class="threshold-amount">${fmt(total)} / ${fmt(t)}</span>
+    <span class="threshold-pct" style="color:${ok ? colors[i] : 'var(--text-muted)'}">${pct.toFixed(1)}%</span>
+  </div>
+</div>
+<div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${col}"></div></div>
+</div>`;
+      }
+    });
+
+    document.getElementById('achievedBadges').innerHTML = badgesHtml;
+    document.getElementById('thresholdList').innerHTML = barsHtml || '<div class="empty-state" style="padding:10px 0">所有門檻皆已達成 🎉</div>';
+
+    document.getElementById('thresholdList2').innerHTML = (badgesHtml ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">${badgesHtml}</div>` : '') + barsHtml;
+  }
+
+  // ════════════════════════════════════════════════
+  function renderMonthlyChart() {
+    const { stock, ins, cg } = getMonthBreakdown();
+    const combined = stock.map((v, i) => v + ins[i] + cg[i]);
+    const max = Math.max(...combined, 1);
+    document.getElementById('monthlyChart').innerHTML = stock.map((sv, i) => {
+      const iv = ins[i], cv = cg[i];
+      const tot = sv + iv + cv;
+      const totalH = Math.max(2, (tot / max) * 100);
+      const stockFrac = tot > 0 ? sv / tot : 0;
+      const insFrac = tot > 0 ? iv / tot : 0;
+      const cgFrac = tot > 0 ? cv / tot : 0;
+      return `<div class="month-col">
+<div class="month-stack" style="height:${totalH}%"
+  onmouseenter="showTT(event,ttMonthHtml(${i},${sv},${iv},${cv}))"
+  onmouseleave="hideTT()">
+  <div class="seg-cg"    style="flex:${cgFrac};min-height:${cv > 0 ? 2 : 0}px"></div>
+  <div class="seg-ins"   style="flex:${insFrac};min-height:${iv > 0 ? 2 : 0}px"></div>
+  <div class="seg-stock" style="flex:${stockFrac};min-height:${sv > 0 ? 2 : 0}px"></div>
+</div>
+<div class="month-label">${MN[i].replace('月', '')}</div>
+</div>`;
+    }).join('');
+  }
+
+  // ════════════════════════════════════════════════
+  function renderHeatGrid() {
+    const { stock, ins, cg } = getMonthBreakdown();
+    const combined = stock.map((v, i) => v + ins[i] + cg[i]);
+    const max = Math.max(...combined, 1);
+    document.getElementById('heatGrid').innerHTML = combined.map((v, i) => {
+      const sv = stock[i], iv = ins[i], cv = cg[i];
+      const a = (.07 + (v / max) * .73).toFixed(2);
+      return `<div class="heat-cell" style="background:rgba(240,180,41,${a});border:1px solid rgba(240,180,41,${(+a * .75).toFixed(2)})" onclick="showMonthDetails(${i})"
+  onmouseenter="showTT(event,ttMonthHtml(${i},${sv},${iv},${cv}))"
+  onmouseleave="hideTT()">
+  <div style="font-size:.62rem;color:rgba(255,255,255,.6);font-family:'DM Mono',monospace">${MN[i]}</div>
+  <div style="font-size:.7rem;font-family:'DM Mono',monospace;color:${v > 0 ? '#fff' : 'var(--text-muted)'};margin-top:2px;font-weight:500">${v > 0 ? fmt(v) : '—'}</div>
+</div>`;
+    }).join('');
+  }
+
+  // ════════════════════════════════════════════════
+  function renderStockTable() {
+    const body = document.getElementById('stkBody');
+    const empty = document.getElementById('stkEmpty');
+    if (!stockList.length) { body.innerHTML = ''; empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    body.innerHTML = stockList.map(s => {
+      const pct = calcAchievePct(s);
+      const pctStr = pct !== null ? pct.toFixed(1) + '%' : '未設目標';
+      const barCol = pct === null ? 'var(--border)' : pct >= 100 ? 'var(--accent2)' : pct >= 60 ? 'var(--accent)' : 'var(--danger)';
+      const barW = pct !== null ? Math.min(100, pct).toFixed(1) : 0;
+      return `<tr>
+<td><span class="ticker-badge">${s.ticker}</span>${s.overseas ? '<span class="tag-overseas">海外</span>' : ''}</td>
+<td style="font-family:'DM Mono',monospace">${s.shares.toLocaleString()}</td>
+<td style="font-family:'DM Mono',monospace">${s.targetLots ? s.targetLots + '張' : '—'}</td>
+<td><div class="mini-bar-wrap"><div class="mini-bar-track"><div class="mini-bar-fill" style="width:${barW}%;background:${barCol}"></div></div><div class="mini-pct" style="color:${barCol}">${pctStr}</div></div></td>
+<td style="font-family:'DM Mono',monospace">$${s.div}</td>
+<td><span class="freq-badge ${CONFIG.freqClass[s.freq]}">${CONFIG.freqLabel[s.freq]}</span></td>
+<td style="font-family:'DM Mono',monospace;color:var(--accent)">${fmt(calcStockAnnual(s))}</td>
+<td style="font-family:'DM Mono',monospace;color:var(--accent2)">${fmt(calcStockMonthly(s))}</td>
+<td style="font-family:'DM Mono',monospace;color:${s.c54 > 0 ? 'var(--accent4)' : 'var(--text-muted)'}">${s.c54 > 0 ? s.c54 + '%' : '—'}</td>
+<td><button class="btn btn-danger" onclick="removeStock(${s.id})">✕</button></td>
+</tr>`;
+    }).join('');
+  }
+
+  // ════════════════════════════════════════════════
+  function renderInsuranceTable() {
+    const body = document.getElementById('insBody');
+    const empty = document.getElementById('insEmpty');
+    if (!insuranceList.length) { body.innerHTML = ''; empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    body.innerHTML = insuranceList.map(i => {
+      const annual = i.amount * i.months.length;
+      return `<tr>
+<td style="font-family:'DM Mono',monospace;color:var(--text)">${i.name}</td>
+<td><span class="freq-badge fm">${TL[i.type]}</span></td>
+<td style="font-family:'DM Mono',monospace;color:var(--accent)">${fmt(i.amount)}</td>
+<td style="font-size:.74rem;color:var(--accent3);font-family:'DM Mono',monospace">${i.months.map(m => m + '月').join('、')}</td>
+<td style="font-family:'DM Mono',monospace;color:var(--accent)">${fmt(annual)}</td>
+<td style="font-family:'DM Mono',monospace;color:var(--accent2)">${fmt(annual / 12)}</td>
+<td style="font-size:.72rem;color:var(--text-muted)">${i.note}</td>
+<td><button class="btn btn-danger" onclick="removeInsurance(${i.id})">✕</button></td>
+</tr>`;
+    }).join('');
+  }
+
+  // ════════════════════════════════════════════════
+  function renderCGTable() {
+    const body = document.getElementById('cgBody');
+    const empty = document.getElementById('cgEmpty');
+    if (!capitalGainsList.length) { body.innerHTML = ''; empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    body.innerHTML = capitalGainsList.map(c => {
+      return `<tr>
+<td style="font-family:'DM Mono',monospace">${c.year}年 ${c.month}月</td>
+<td style="font-family:'DM Mono',monospace;color:var(--accent4)">${fmt(c.amount)}</td>
+<td style="font-family:'DM Mono',monospace;color:${c.roi>0?'var(--accent2)':c.roi<0?'var(--danger)':'var(--text-muted)'}">${c.roi ? c.roi + '%' : '—'}</td>
+<td>${c.note}</td>
+<td><button class="btn btn-danger" onclick="removeCG(${c.id})">✕</button></td>
+</tr>`;
+    }).join('');
+  }
+
+  // ════════════════════════════════════════════════
+  function sortData(listName, key, thEl) {
+    if (sortState.list === listName && sortState.key === key) sortState.dir *= -1;
+    else sortState = { list: listName, key, dir: 1 };
+
+    document.querySelectorAll('.sortable').forEach(el => el.classList.remove('asc', 'desc'));
+    if (sortState.dir === 1) thEl.classList.add('asc');
+    else thEl.classList.add('desc');
+
+    let list;
+    if (listName === 'stockList') list = stockList;
+    else if (listName === 'insuranceList') list = insuranceList;
+    else if (listName === 'capitalGainsList') list = capitalGainsList;
+
+    list.sort((a, b) => {
+      let va = a[key], vb = b[key];
+      if (key === 'pct') { va = calcAchievePct(a) || 0; vb = calcAchievePct(b) || 0; }
+      if (key === 'annual') { va = calcStockAnnual(a); vb = calcStockAnnual(b); }
+      if (key === 'monthly') { va = calcStockMonthly(a); vb = calcStockMonthly(b); }
+      if (key === 'annualIns') { va = a.amount * a.months.length; vb = b.amount * b.months.length; }
+      if (key === 'year') { va = a.year * 100 + a.month; vb = b.year * 100 + b.month; }
+
+      if (typeof va === 'string') return va.localeCompare(vb) * sortState.dir;
+      return (va > vb ? 1 : va < vb ? -1 : 0) * sortState.dir;
+    });
+
+    if (listName === 'stockList') renderStockTable();
+    if (listName === 'insuranceList') renderInsuranceTable();
+    if (listName === 'capitalGainsList') renderCGTable();
+  }
+
+  function addAsset100k() {
+    const el = document.getElementById('gapAsset');
+    el.value = (parseFloat(el.value) || 0) + 100000;
+    calcGap();
+  }
+
+  function calcGap() {
+    const asset = parseFloat(document.getElementById('gapAsset')?.value) || 0;
+    const rate = parseFloat(document.getElementById('gapRate')?.value) || 4.5;
+    const pmt = parseFloat(document.getElementById('gapPmt')?.value) || 0;
+    const el = document.getElementById('gapResult');
+    if (!el) return;
+    if (asset <= 0) { el.style.display = 'none'; return; }
+    el.style.display = 'block';
+    const { total } = getTotals();
+    document.getElementById('gapCurrent').textContent = fmt(total);
+    document.getElementById('gapAssetIncome').textContent = fmt((asset * rate / 100) / 12);
+    const r_m = (rate / 100) / 12;
+
+    document.getElementById('milestoneGrid').innerHTML = CONFIG.assetMilestones.map(m => {
+      const ok = asset >= m;
+      let achievedText = '';
+      if (CONFIG.achievedDates[m]) { achievedText = `達成於 ${CONFIG.achievedDates[m]}`; }
+      else if (ok) { achievedText = `已達成 ✓`; }
+
+      let timeStr = '';
+      if (!ok) {
+        if (pmt > 0 || r_m > 0) {
+          let n = 0;
+          if (r_m > 0) {
+            const num = m + pmt / r_m, den = asset + pmt / r_m;
+            if (den > 0 && num > 0) n = Math.log(num / den) / Math.log(1 + r_m);
+          } else { n = (m - asset) / pmt; }
+          if (n > 0 && n < 1200) {
+            const y = Math.floor(n / 12), mo = Math.ceil(n % 12);
+            timeStr = `約需 ${y > 0 ? y + '年' : ''}${mo}個月`;
+          } else { timeStr = '難以達成'; }
+        } else { timeStr = '未投入資金'; }
+      }
+
+      return `<div class="milestone-card ${ok ? 'reached' : ''}">
+<div class="m-lbl">${m >= 1e6 ? (m / 1e6).toFixed(0) + 'M' : (m / 1000).toFixed(0) + 'K'} 資產</div>
+<div class="m-val">$${(m / 10000).toFixed(0)}萬</div>
+<div class="m-gap">${ok || CONFIG.achievedDates[m] ? achievedText : '差 $' + Math.round((m - asset) / 10000) + '萬<br><span style="font-size:0.65rem;color:var(--text-muted);margin-top:2px;display:inline-block;">' + timeStr + '</span>'}</div>
+</div>`;
+    }).join('');
+
+    let suggestionHtml = '';
+    const nextUnreached = CONFIG.assetMilestones.find(m => m > asset);
+    if (nextUnreached) {
+      if (pmt <= 0) {
+        suggestionHtml = '<div class="info-chip" style="margin-top:16px;margin-bottom:0;color:var(--accent);border-color:rgba(240,180,41,.3);background:rgba(240,180,41,.08);display:block;">💡 提示：目前每月預估投入為 0，若想加速達成下一階段目標，建議設定定期定額投入並善用複利效應！</div>';
+      } else {
+        let n = 0;
+        if (r_m > 0) {
+          const num = nextUnreached + pmt / r_m, den = asset + pmt / r_m;
+          if (den > 0 && num > 0) n = Math.log(num / den) / Math.log(1 + r_m);
+        } else { n = (nextUnreached - asset) / pmt; }
+        if (n > 240) { // 超過20年
+          const suggestedPmt = Math.ceil((pmt * 1.5) / 1000) * 1000;
+          suggestionHtml = `<div class="info-chip" style="margin-top:16px;margin-bottom:0;color:var(--accent);border-color:rgba(240,180,41,.3);background:rgba(240,180,41,.08);display:block;">💡 提示：距離下一目標約需 ${(n/12).toFixed(1)} 年，時間較長。建議可評估將每月投入金額提高至 $${suggestedPmt.toLocaleString()} 以上，加速達標！</div>`;
+        }
+      }
+    }
+    const sugEl = document.getElementById('gapSuggestion');
+    if (sugEl) { sugEl.innerHTML = suggestionHtml; sugEl.style.display = suggestionHtml ? 'block' : 'none'; }
+  }
+
+  // ════════════════════════════════════════════════
+  // ACTIONS
+  // ════════════════════════════════════════════════
+  function addStock() {
+    const ticker = document.getElementById('stkTicker').value.trim();
+    const shares = parseFloat(document.getElementById('stkShares').value);
+    const target = parseFloat(document.getElementById('stkTarget').value) || 0;
+    const div = parseFloat(document.getElementById('stkDiv').value);
+    const freq = document.getElementById('stkFreq').value;
+    const overseas = document.getElementById('stkOverseas').value === '1';
+    const c54 = overseas ? 0 : (parseFloat(document.getElementById('stk54c').value) || 0);
+    if (!ticker || isNaN(shares) || isNaN(div) || shares < 0 || div < 0) { alert('請填寫代號、持股數及配息'); return; }
+    stockList.push({ id: nextId++, ticker, shares, targetLots: target, div, freq, overseas, c54 });
+    ['stkTicker', 'stkShares', 'stkTarget', 'stkDiv', 'stk54c'].forEach(id => { document.getElementById(id).value = ''; });
+    document.getElementById('stkOverseas').value = '0';
+    handleOverseasChange();
+    renderAll();
+  }
+  function removeStock(id) { stockList = stockList.filter(s => s.id !== id); renderAll(); }
+
+  function clearAllStocks() {
+    if (!stockList.length) return;
+    if (confirm('確定要清空所有持股紀錄嗎？此操作無法復原。')) {
+      stockList = [];
+      renderAll();
+    }
+  }
+
+  function exportStocksCSV() {
+    if (!stockList.length) { alert('沒有持股資料可匯出'); return; }
+    const headers = ['代號', '現有(股)', '目標(張)', '每次配息/股', '頻率', '年度收益', '月均', '54C(%)', '海外'];
+    const rows = stockList.map(s => {
+      return [
+        `"${s.ticker}"`, s.shares, s.targetLots || 0, s.div, CONFIG.freqLabel[s.freq],
+        calcStockAnnual(s).toFixed(2), calcStockMonthly(s).toFixed(2), s.c54, s.overseas ? '是' : '否'
+      ].join(',');
+    });
+    const csvContent = '\uFEFF' + headers.join(',') + '\n' + rows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `stock-list-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function handleOverseasChange() {
+    const isOverseas = document.getElementById('stkOverseas').value === '1';
+    const c54Input = document.getElementById('stk54c');
+    if (isOverseas) {
+      c54Input.value = 0;
+      c54Input.disabled = true;
+      c54Input.style.opacity = '0.5';
+    } else {
+      c54Input.disabled = false;
+      c54Input.style.opacity = '1';
+    }
+  }
+
+  function addInsurance() {
+    const name = document.getElementById('insName').value.trim();
+    const amount = parseFloat(document.getElementById('insAmount').value);
+    const type = document.getElementById('insType').value;
+    const mStr = document.getElementById('insMonths').value;
+    const note = document.getElementById('insNote').value.trim();
+    const months = mStr.split(/[,，\s]+/).map(m => parseInt(m)).filter(m => m >= 1 && m <= 12);
+    if (!name || isNaN(amount) || amount <= 0 || !months.length) {
+      alert('請填寫名稱、金額與領取月份（如 1 或 1,5 或 3,6,9,12）'); return;
+    }
+    insuranceList.push({ id: nextId++, name, amount, type, months, note });
+    ['insName', 'insAmount', 'insMonths', 'insNote'].forEach(id => { document.getElementById(id).value = ''; });
+    renderAll();
+  }
+  function removeInsurance(id) { insuranceList = insuranceList.filter(i => i.id !== id); renderAll(); }
+
+  function clearAllInsurance() {
+    if (!insuranceList.length) return;
+    if (confirm('確定要清空所有保險紀錄嗎？此操作無法復原。')) {
+      insuranceList = [];
+      renderAll();
+    }
+  }
+
+  function exportInsuranceCSV() {
+    if (!insuranceList.length) { alert('沒有保險資料可匯出'); return; }
+    const headers = ['名稱', '類型', '每次金額', '領取月份', '年度總計', '月均攤', '備註'];
+    const rows = insuranceList.map(i => {
+      return [
+        `"${i.name}"`, TL[i.type], i.amount, `"${i.months.join('、')}"`,
+        i.amount * i.months.length, (i.amount * i.months.length / 12).toFixed(2), `"${i.note}"`
+      ].join(',');
+    });
+    const csvContent = '\uFEFF' + headers.join(',') + '\n' + rows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `insurance-list-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function addCG() {
+    const year = parseInt(document.getElementById('cgYear').value);
+    const month = parseInt(document.getElementById('cgMonth').value);
+    const amount = parseFloat(document.getElementById('cgAmount').value);
+    const roi = parseFloat(document.getElementById('cgRoi').value) || 0;
+    const note = document.getElementById('cgNote').value.trim();
+    if (!year || !month || isNaN(amount) || amount <= 0) { alert('請填寫完整資訊'); return; }
+    capitalGainsList.push({ id: nextId++, year, month, amount, roi, note });
+    ['cgAmount', 'cgRoi', 'cgNote'].forEach(id => document.getElementById(id).value = '');
+    renderAll();
+  }
+  function removeCG(id) { capitalGainsList = capitalGainsList.filter(c => c.id !== id); renderAll(); }
+
+  function clearAllCG() {
+    if (!capitalGainsList.length) return;
+    if (confirm('確定要清空所有價差紀錄嗎？此操作無法復原。')) {
+      capitalGainsList = [];
+      renderAll();
+    }
+  }
+
+  function exportCGCSV() {
+    if (!capitalGainsList.length) { alert('沒有價差資料可匯出'); return; }
+    const headers = ['年份', '月份', '金額', '報酬率(%)', '備註'];
+    const rows = capitalGainsList.map(c => {
+      return [
+        c.year, c.month, c.amount, c.roi || 0, `"${c.note}"`
+      ].join(',');
+    });
+    const csvContent = '\uFEFF' + headers.join(',') + '\n' + rows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `capital-gains-list-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportChartImage(elementId, filenamePrefix) {
+    const target = document.getElementById(elementId);
+    if (!target || typeof html2canvas === 'undefined') {
+      alert('截圖套件尚未載入完成，請稍後再試。');
+      return;
+    }
+    
+    hideTT(); // 避免 Tooltip 殘留在截圖中
+    const btn = target.querySelector('button');
+    if (btn) btn.style.display = 'none'; // 隱藏按鈕本身，讓截圖更乾淨
+
+    html2canvas(target, { backgroundColor: '#111827', scale: 2, logging: false }).then(canvas => {
+      if (btn) btn.style.display = 'inline-block';
+      const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+      const link = document.createElement('a');
+      link.download = `${filenamePrefix}-${dateStr}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }).catch(err => {
+      if (btn) btn.style.display = 'inline-block';
+      alert('匯出圖片失敗，請檢查主控台。');
+    });
+  }
+
+  function switchTab(tab, btn) {
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('section-' + tab).classList.add('active');
+    btn.classList.add('active');
+  }
+
+  // ════════════════════════════════════════════════
+  // MODAL & EXPORT/IMPORT
+  // ════════════════════════════════════════════════
+  function showMonthDetails(mIndex) {
+    const month = mIndex + 1;
+    const sItems = stockList.filter(s => CONFIG.freqMonths[s.freq].includes(month));
+    const iItems = insuranceList.filter(i => i.months.includes(month));
+
+    let html = '';
+    let total = 0;
+
+    if (sItems.length > 0) {
+      html += `<div style="color:var(--text-dim);font-size:.75rem;margin:12px 0 6px;">📈 股息收入</div>`;
+      sItems.forEach(s => {
+        const amt = s.shares * s.div;
+        total += amt;
+        html += `<div class="detail-item">
+        <div><span class="ticker-badge">${s.ticker}</span> <span style="color:var(--text-muted);font-size:.7rem;margin-left:4px;">${s.shares.toLocaleString()} 股</span></div>
+        <div style="color:var(--accent)">+${fmt(amt)}</div>
+      </div>`;
+      });
+    }
+
+    const { cgMonthArray } = getCGStats();
+    const cv = enableCG ? cgMonthArray[mIndex] : 0;
+    if (cv > 0 && enableCG) {
+      html += `<div style="color:var(--text-dim);font-size:.75rem;margin:12px 0 6px;">💰 價差收入 (歷年攤提)</div>`;
+      html += `<div class="detail-item"><div><span style="color:var(--text)">平均攤提</span></div><div style="color:var(--accent4)">+${fmt(cv)}</div></div>`;
+      total += cv;
+    }
+
+    if (iItems.length > 0) {
+      html += `<div style="color:var(--text-dim);font-size:.75rem;margin:12px 0 6px;">🛡️ 保險收入</div>`;
+      iItems.forEach(i => {
+        total += i.amount;
+        html += `<div class="detail-item">
+        <div><span style="color:var(--text)">${i.name}</span> <span style="color:var(--text-muted);font-size:.7rem;margin-left:4px;">${TL[i.type]}</span></div>
+        <div style="color:var(--accent2)">+${fmt(i.amount)}</div>
+      </div>`;
+      });
+    }
+
+    if (total === 0) {
+      html = `<div class="empty-state">本月份尚無被動收入</div>`;
+    } else {
+      html += `<div class="detail-item" style="border-top:2px solid rgba(240,180,41,.3);margin-top:12px;font-weight:700;font-size:1.05rem;color:var(--text);">
+      <div>合計</div>
+      <div style="color:var(--accent3)">${fmt(total)}</div>
+    </div>`;
+    }
+
+    document.getElementById('modalTitle').innerHTML = `<span class="dot b"></span> ${month}月 被動收入明細`;
+    document.getElementById('modalBody').innerHTML = html;
+    document.getElementById('detailsModal').classList.add('show');
+  }
+  function closeModal() { document.getElementById('detailsModal').classList.remove('show'); }
+
+  function exportData() {
+    const data = JSON.stringify({ stockList, insuranceList, capitalGainsList, nextId }, null, 2);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
+    a.download = `passive-income-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+  }
+
+  function handleImport(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (data.stockList && data.insuranceList) {
+          stockList = data.stockList;
+          insuranceList = data.insuranceList;
+          capitalGainsList = data.capitalGainsList || [];
+          nextId = data.nextId || 999;
+          renderAll();
+          alert('✅ 資料匯入成功！');
+        } else { alert('❌ 檔案格式錯誤，找不到對應資料'); }
+      } catch (err) { alert('❌ 檔案解析失敗'); }
+      e.target.value = ''; // Reset input for re-importing same file
+    };
+    reader.readAsText(file);
+  }
+
+  renderAll();
+  handleOverseasChange();
+</script>
+</body>
+</html>

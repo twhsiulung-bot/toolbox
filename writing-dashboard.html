@@ -1,0 +1,2366 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>琉．修龍 作品管理</title>
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC&family=Noto+Serif+TC:wght@300;400;500;700;900&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #fdfaf6;
+    --parchment: #332d27;
+    --parchment-deep: #594f43;
+    --gold: #bd9544;
+    --gold-light: #9e7525;
+    --gold-dim: #e3d1ac;
+    --crimson: #8b1a1a;
+    --crimson-light: #c0392b;
+    --teal: #1a5c5c;
+    --teal-light: #2a8a7a;
+    --mist: #82786a;
+    --shadow: rgba(0,0,0,0.06);
+    --shadow-deep: rgba(0,0,0,0.12);
+    --panel: #ffffff;
+    --serif: 'LXGW WenKai TC', 'Cormorant Garamond', 'Noto Serif TC', serif;
+    --mono: 'JetBrains Mono', monospace;
+    --body: 'Noto Serif TC', serif;
+    --transition: 0.3s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--ink);
+    color: var(--parchment);
+    font-family: var(--body);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Background texture ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 10%, rgba(189,149,68,0.06) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 80% at 80% 90%, rgba(59,145,131,0.05) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 40% at 50% 50%, rgba(196,63,63,0.03) 0%, transparent 70%);
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ── Noise overlay ── */
+  body::after {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0; opacity: 0.2;
+  }
+
+  /* ── Layout ── */
+  #app { position: relative; z-index: 1; }
+
+  /* ── Header ── */
+  header {
+    padding: 2.5rem 3rem 1.5rem;
+    border-bottom: 1px solid rgba(189,149,68,0.25);
+    display: flex; align-items: flex-end; justify-content: space-between;
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(253, 250, 246, 0.9);
+    backdrop-filter: blur(12px);
+  }
+
+  .header-title h1 {
+    font-family: var(--serif);
+    font-size: clamp(1.6rem, 3vw, 2.4rem);
+    font-weight: 400;
+    letter-spacing: 0.18em;
+    color: var(--gold-light);
+    line-height: 1;
+  }
+  .header-title h1 em {
+    font-style: italic;
+    color: var(--parchment);
+    opacity: 0.6;
+    font-size: 0.7em;
+    letter-spacing: 0.08em;
+  }
+  .header-title .subtitle {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--mist);
+    opacity: 0.5;
+    letter-spacing: 0.25em;
+    margin-top: 0.4rem;
+    text-transform: uppercase;
+  }
+
+  .header-actions { display: flex; gap: 0.75rem; align-items: center; }
+
+  /* ── Nav tabs ── */
+  nav {
+    display: flex; gap: 0;
+    padding: 0 3rem;
+    border-bottom: 1px solid rgba(189,149,68,0.2);
+    background: rgba(253, 250, 246, 0.6);
+    backdrop-filter: blur(8px);
+    position: sticky; top: 73px; z-index: 99;
+    overflow-x: auto;
+  }
+  nav::-webkit-scrollbar { height: 2px; }
+  nav::-webkit-scrollbar-thumb { background: var(--gold-dim); }
+
+  .nav-tab {
+    padding: 0.9rem 1.6rem;
+    font-family: var(--body);
+    font-size: 0.8rem;
+    letter-spacing: 0.12em;
+    color: var(--mist);
+    cursor: pointer;
+    border: none; background: none;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: var(--transition);
+    position: relative;
+  }
+  .nav-tab:hover { color: var(--gold-light); }
+  .nav-tab.active {
+    color: var(--gold-light);
+    border-bottom-color: var(--gold);
+  }
+
+  /* ── Main content area ── */
+  main { padding: 2.5rem 3rem; min-height: calc(100vh - 130px); }
+
+  .page { display: none; animation: fadeIn 0.4s ease; }
+  .page.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ── Section titles ── */
+  .section-title {
+    font-family: var(--serif);
+    font-size: 1.4rem;
+    font-weight: 400;
+    letter-spacing: 0.2em;
+    color: var(--gold-light);
+    margin-bottom: 0.4rem;
+  }
+  .section-subtitle {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.2em;
+    color: var(--mist);
+    opacity: 0.5;
+    margin-bottom: 2rem;
+    text-transform: uppercase;
+  }
+
+  /* ── KPI cards ── */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .kpi-card {
+    background: var(--panel);
+    border: 1px solid rgba(189,149,68,0.25);
+    padding: 1.4rem 1.6rem;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 2px 8px var(--shadow);
+    transition: var(--transition);
+  }
+  .kpi-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    opacity: 0;
+    transition: var(--transition);
+  }
+  .kpi-card:hover { background: #faf5eb; }
+  .kpi-card:hover::before { opacity: 1; }
+
+  .kpi-label {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--mist);
+    opacity: 0.6;
+    margin-bottom: 0.6rem;
+  }
+  .kpi-value {
+    font-family: var(--serif);
+    font-size: 2rem;
+    font-weight: 400;
+    color: var(--gold-light);
+    line-height: 1;
+  }
+  .kpi-value span { font-size: 0.8rem; color: var(--mist); opacity: 0.6; margin-left: 0.3rem; }
+  .kpi-sub {
+    font-size: 0.7rem;
+    color: var(--mist);
+    opacity: 0.5;
+    margin-top: 0.4rem;
+  }
+
+  /* ── Charts row ── */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2.5rem;
+  }
+  @media (max-width: 900px) { .charts-grid { grid-template-columns: 1fr; } }
+
+  .chart-panel {
+    background: var(--panel);
+    border: 1px solid rgba(189,149,68,0.25);
+    padding: 1.6rem;
+    box-shadow: 0 2px 8px var(--shadow);
+  }
+  .chart-panel.wide { grid-column: 1 / -1; }
+
+  .chart-panel-inner-flex {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  .chart-list-container {
+    overflow-y: auto; max-height: 160px; scrollbar-width: thin; padding-right: 0.2rem; margin-top: 1rem; border-top: 1px dashed rgba(189,149,68,0.15); padding-top: 0.5rem;
+  }
+
+  .chart-title {
+    font-family: var(--mono);
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: var(--gold);
+    margin-bottom: 1.2rem;
+  }
+
+  .year-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 0.5rem;
+    border-bottom: 1px dashed rgba(189,149,68,0.25);
+    cursor: pointer;
+    transition: var(--transition);
+    border-radius: 4px;
+  }
+  .year-list-item:last-child { border-bottom: none; }
+  .year-list-item:hover { background: #faf5eb; }
+  .year-list-year {
+    font-family: var(--serif);
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--parchment);
+  }
+  .year-list-wc {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--gold-light);
+  }
+  .year-list-rank {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--mist);
+    margin-right: 0.5rem;
+  }
+
+  canvas { width: 100% !important; }
+
+  /* ── Table ── */
+  .table-panel {
+    background: var(--panel);
+    border: 1px solid rgba(189,149,68,0.25);
+    overflow: hidden;
+    box-shadow: 0 2px 8px var(--shadow);
+  }
+
+  .table-toolbar {
+    display: flex; gap: 0.75rem; align-items: center;
+    padding: 1rem 1.2rem;
+    border-bottom: 1px solid rgba(189,149,68,0.15);
+    flex-wrap: wrap;
+  }
+
+  .search-box {
+    flex: 1; min-width: 180px;
+    background: #ffffff;
+    border: 1px solid rgba(189,149,68,0.4);
+    color: var(--parchment);
+    padding: 0.5rem 0.85rem;
+    font-family: var(--body);
+    font-size: 0.8rem;
+    outline: none;
+    transition: var(--transition);
+  }
+  .search-box::placeholder { color: var(--mist); opacity: 0.4; }
+  .search-box:focus { border-color: var(--gold); background: #faf5eb; }
+
+  select.filter-select {
+    background: #ffffff;
+    border: 1px solid rgba(189,149,68,0.4);
+    color: var(--parchment);
+    padding: 0.5rem 0.75rem;
+    font-family: var(--body);
+    font-size: 0.8rem;
+    outline: none;
+    cursor: pointer;
+    transition: var(--transition);
+  }
+  select.filter-select:focus { border-color: var(--gold); }
+  select.filter-select option { background: #ffffff; color: var(--parchment); }
+
+  .data-table { width: 100%; border-collapse: collapse; }
+  .data-table th {
+    padding: 0.75rem 1.2rem;
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gold);
+    opacity: 0.7;
+    border-bottom: 1px solid rgba(201,168,76,0.15);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .data-table th:hover { opacity: 1; }
+  .data-table th .sort-indicator { margin-left: 0.3rem; opacity: 0.4; }
+  .data-table th.sorted .sort-indicator { opacity: 1; color: var(--gold-light); }
+
+  .data-table td {
+    padding: 0.65rem 1.2rem;
+    font-size: 0.8rem;
+    border-bottom: 1px solid rgba(189,149,68,0.1);
+    transition: var(--transition);
+  }
+  .data-table tr:hover td { background: rgba(189,149,68,0.06); }
+  .data-table tr:last-child td { border-bottom: none; }
+
+  .badge {
+    display: inline-block;
+    padding: 0.15rem 0.6rem;
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    letter-spacing: 0.1em;
+    border-radius: 0;
+  }
+  .badge-done { background: rgba(37,112,99,0.15); color: #257063; border: 1px solid rgba(37,112,99,0.3); }
+  .badge-pub { background: rgba(163,38,38,0.15); color: #a32626; border: 1px solid rgba(163,38,38,0.3); }
+  .badge-wip { background: rgba(189,149,68,0.15); color: var(--gold-light); border: 1px solid rgba(189,149,68,0.3); }
+  .badge-plan { background: rgba(100,100,120,0.15); color: #646478; border: 1px solid rgba(100,100,120,0.3); }
+
+  .table-pagination {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.9rem 1.2rem;
+    border-top: 1px solid rgba(189,149,68,0.15);
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--mist);
+    opacity: 0.7;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .pagination-btns { display: flex; gap: 0.4rem; }
+
+  /* ── Button styles ── */
+  .btn {
+    padding: 0.5rem 1.1rem;
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border: 1px solid;
+    transition: var(--transition);
+    white-space: nowrap;
+  }
+  .btn-gold {
+    background: transparent;
+    border-color: var(--gold);
+    color: var(--gold-light);
+  }
+  .btn-gold:hover { background: rgba(189,149,68,0.15); }
+  .btn-ghost {
+    background: transparent;
+    border-color: rgba(189,149,68,0.35);
+    color: var(--mist);
+  }
+  .btn-ghost:hover { border-color: var(--gold); color: var(--gold-light); }
+  .btn-danger {
+    background: transparent;
+    border-color: rgba(192,57,43,0.3);
+    color: #c0392b;
+  }
+  .btn-danger:hover { background: rgba(192,57,43,0.1); }
+  .btn-danger-solid {
+    background: #c0392b;
+    border-color: #c0392b;
+    color: white;
+  }
+  .btn-danger-solid:hover { background: #a32626; border-color: #a32626; }
+  .btn-sm { padding: 0.3rem 0.7rem; font-size: 0.58rem; }
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  /* ── Year-mode timeline ── */
+  .tl-year-block {
+    margin-bottom: 2rem;
+  }
+  .tl-year-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+    margin-bottom: 0.9rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid rgba(189,149,68,0.2);
+  }
+  .tl-year-num {
+    font-family: var(--serif);
+    font-size: 1.5rem;
+    font-weight: 400;
+    color: var(--gold);
+    letter-spacing: 0.25em;
+    opacity: 0.85;
+    min-width: 4rem;
+  }
+  .tl-year-total {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    color: var(--mist);
+    opacity: 0.45;
+    letter-spacing: 0.15em;
+  }
+  .tl-year-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .tl-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.75rem 0.35rem 0.55rem;
+    border: 1px solid;
+    font-size: 0.78rem;
+    line-height: 1.3;
+    cursor: default;
+    transition: var(--transition);
+    position: relative;
+    overflow: hidden;
+  }
+  .tl-chip::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: currentColor;
+    opacity: 0;
+    transition: var(--transition);
+  }
+  .tl-chip:hover::before { opacity: 0.06; }
+  .tl-chip-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .tl-chip-title { font-weight: 400; }
+  .tl-chip-wc {
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    opacity: 0.55;
+    margin-left: 0.2rem;
+  }
+  .tl-series-group-label {
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--mist);
+    opacity: 0.45;
+    margin-bottom: 0.45rem;
+    margin-top: 0.7rem;
+  }
+
+  /* ── Detail-mode timeline ── */
+  .timeline-wrap {
+    position: relative;
+    padding-left: 2rem;
+    max-height: 70vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--gold-dim) transparent;
+  }
+  .timeline-wrap::before {
+    content: '';
+    position: absolute; left: 0.4rem; top: 0; bottom: 0;
+    width: 1px;
+    background: linear-gradient(180deg, transparent, var(--gold-dim), var(--gold-dim), transparent);
+    opacity: 0.4;
+  }
+
+  /* ── Stat exclude badge ── */
+  .excl-badge {
+    display: inline-block;
+    padding: 0.1rem 0.45rem;
+    font-family: var(--mono);
+    font-size: 0.55rem;
+    letter-spacing: 0.08em;
+    background: rgba(163,38,38,0.1);
+    color: #a32626;
+    border: 1px solid rgba(163,38,38,0.25);
+    vertical-align: middle;
+    margin-left: 0.4rem;
+  }
+
+  .timeline-item {
+    position: relative;
+    margin-bottom: 1rem;
+    padding: 0.9rem 1.1rem;
+    background: var(--panel);
+    border: 1px solid rgba(189,149,68,0.2);
+    border-left: 2px solid rgba(189,149,68,0.4);
+    transition: var(--transition);
+    cursor: default;
+  }
+  .timeline-item::before {
+    content: '';
+    position: absolute; left: -1.65rem; top: 50%;
+    transform: translateY(-50%);
+    width: 7px; height: 7px;
+    background: var(--gold);
+    border-radius: 50%;
+    box-shadow: 0 0 8px rgba(189,149,68,0.5);
+  }
+  .timeline-item:hover { background: #faf5eb; border-left-color: var(--gold); }
+
+  .timeline-date {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.15em;
+    color: var(--gold);
+    opacity: 0.7;
+    margin-bottom: 0.3rem;
+  }
+  .timeline-title {
+    font-size: 0.85rem;
+    color: var(--parchment);
+    margin-bottom: 0.2rem;
+  }
+  .timeline-meta {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    color: var(--mist);
+    opacity: 0.5;
+  }
+
+  /* ── Editor / Config page ── */
+  .editor-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 1.5rem;
+    min-height: 60vh;
+  }
+  @media (max-width: 800px) { .editor-layout { grid-template-columns: 1fr; } }
+
+  .series-list-panel {
+    background: var(--panel);
+    border: 1px solid rgba(189,149,68,0.25);
+    overflow-y: auto;
+    max-height: 75vh;
+    box-shadow: 0 2px 8px var(--shadow);
+    scrollbar-width: thin;
+    scrollbar-color: var(--gold-dim) transparent;
+  }
+  .series-list-item {
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(189,149,68,0.15);
+    font-size: 0.8rem;
+    transition: var(--transition);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .series-list-item:hover { background: rgba(189,149,68,0.05); }
+  .series-list-item.active { background: rgba(189,149,68,0.15); border-left: 2px solid var(--gold); color: var(--gold-light); }
+  .series-list-item .count { font-family: var(--mono); font-size: 0.6rem; color: var(--mist); opacity: 0.5; }
+
+  .editor-panel {
+    background: var(--panel);
+    border: 1px solid rgba(189,149,68,0.25);
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px var(--shadow);
+  }
+
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+  .form-row.full { grid-template-columns: 1fr; }
+  .form-group { display: flex; flex-direction: column; gap: 0.35rem; }
+
+  .form-label {
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--gold);
+    opacity: 0.7;
+  }
+  .form-input, .form-select {
+    background: #ffffff;
+    border: 1px solid rgba(189,149,68,0.4);
+    color: var(--parchment);
+    padding: 0.5rem 0.75rem;
+    font-family: var(--body);
+    font-size: 0.82rem;
+    outline: none;
+    transition: var(--transition);
+    width: 100%;
+  }
+  .form-input:focus, .form-select:focus { border-color: var(--gold); background: #faf5eb; }
+  .form-select option { background: #ffffff; }
+
+  .works-mini-list { margin-top: 1.2rem; }
+  .works-mini-item {
+    display: grid;
+    grid-template-columns: 1fr auto auto 80px 60px;
+    gap: 0.5rem;
+    align-items: center;
+    padding: 0.5rem 0.7rem;
+    border: 1px solid rgba(189,149,68,0.2);
+    margin-bottom: 0.4rem;
+    font-size: 0.78rem;
+    background: #faf5eb;
+    transition: var(--transition);
+  }
+  .works-mini-item:hover { background: rgba(189,149,68,0.1); }
+  .works-mini-item input, .works-mini-item select {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid rgba(189,149,68,0.35);
+    color: var(--parchment);
+    font-size: 0.78rem;
+    padding: 0.2rem 0.3rem;
+    outline: none;
+    width: 100%;
+    font-family: var(--body);
+  }
+  .works-mini-item input:focus, .works-mini-item select:focus { border-bottom-color: var(--gold); background: transparent; }
+  .works-mini-item select option { background: #ffffff; }
+
+  /* ── Import/Export panel ── */
+  .io-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  @media (max-width: 700px) { .io-grid { grid-template-columns: 1fr; } }
+
+  .io-card {
+    background: rgba(245,240,232,0.03);
+    border: 1px solid rgba(201,168,76,0.12);
+    padding: 1.5rem;
+  }
+  .io-card h3 {
+    font-family: var(--serif);
+    font-weight: 300;
+    letter-spacing: 0.15em;
+    color: var(--gold-light);
+    margin-bottom: 0.75rem;
+  }
+  .io-card p { font-size: 0.78rem; color: var(--mist); opacity: 0.7; margin-bottom: 1rem; line-height: 1.6; }
+
+  #json-preview {
+    background: #fcf9f2;
+    border: 1px solid rgba(189,149,68,0.25);
+    padding: 1rem;
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: #446e5b;
+    max-height: 300px;
+    overflow-y: auto;
+    white-space: pre;
+    scrollbar-width: thin;
+    scrollbar-color: var(--gold-dim) transparent;
+    line-height: 1.5;
+  }
+
+  .drop-zone {
+    border: 2px dashed rgba(189,149,68,0.4);
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: var(--transition);
+    font-size: 0.8rem;
+    color: var(--mist);
+    opacity: 0.7;
+  }
+  .drop-zone:hover, .drop-zone.drag-over { border-color: var(--gold); background: rgba(189,149,68,0.08); opacity: 1; }
+  .drop-zone input[type=file] { display: none; }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed;
+    bottom: 2rem; right: 2rem;
+    background: rgba(253, 250, 246, 0.95);
+    border: 1px solid var(--gold);
+    color: var(--gold-light);
+    padding: 0.75rem 1.2rem;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.1em;
+    z-index: 999;
+    transform: translateY(100px);
+    opacity: 0;
+    transition: 0.35s cubic-bezier(0.4,0,0.2,1);
+    pointer-events: none;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.error { background: rgba(253, 250, 246, 0.95); border-color: var(--crimson-light); color: var(--crimson-light); }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(200, 190, 175, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--panel);
+    border: 1px solid rgba(189,149,68,0.3);
+    padding: 2rem;
+    width: min(520px, 90vw);
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+    animation: modalIn 0.3s ease;
+  }
+  @keyframes modalIn { from { opacity: 0; transform: scale(0.96) translateY(16px); } to { opacity: 1; transform: none; } }
+  .modal h2 {
+    font-family: var(--serif);
+    font-weight: 400;
+    letter-spacing: 0.2em;
+    color: var(--gold-light);
+    margin-bottom: 1.5rem;
+    font-size: 1.2rem;
+  }
+  .modal-footer { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.5rem; }
+
+  /* ── Scrollbar global ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--gold-dim); }
+
+  /* ── Responsive ── */
+  @media (max-width: 700px) {
+    header { padding: 1.5rem 1.2rem 1rem; }
+    nav { padding: 0 0.5rem; }
+    main { padding: 1.5rem 1.2rem; }
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+  }
+
+  /* ── Word count bar (inline chart) ── */
+  .inline-bar {
+    display: inline-block;
+    height: 6px;
+    background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+    vertical-align: middle;
+    margin-left: 0.5rem;
+    opacity: 0.6;
+    transition: width 0.5s ease;
+  }
+
+  /* ── Series overview cards ── */
+  .series-overview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+  .series-card {
+    background: var(--panel);
+    border: 1px solid rgba(189,149,68,0.2);
+    padding: 1.2rem;
+    box-shadow: 0 2px 8px var(--shadow);
+    transition: var(--transition);
+    cursor: pointer;
+  }
+  .series-card:hover { background: #faf5eb; border-color: rgba(189,149,68,0.4); }
+  .series-card-title {
+    font-family: var(--serif);
+    font-size: 1rem;
+    font-weight: 400;
+    color: var(--gold-light);
+    letter-spacing: 0.1em;
+    margin-bottom: 0.4rem;
+  }
+  .series-card-count {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    color: var(--mist);
+    opacity: 0.6;
+    margin-bottom: 0.7rem;
+    letter-spacing: 0.12em;
+  }
+  .series-card-bar {
+    height: 3px;
+    background: rgba(189,149,68,0.15);
+    margin-bottom: 0.5rem;
+  }
+  .series-card-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold-dim), var(--gold-light));
+    transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+  }
+  .series-card-words {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+  }
+
+  .divider {
+    border: none;
+    border-top: 1px solid rgba(189,149,68,0.15);
+    margin: 2rem 0;
+  }
+
+  /* ── Recent Works Card ── */
+  .recent-card {
+    background: var(--panel); border: 1px solid rgba(189,149,68,0.2); padding: 0.8rem 1rem; transition: var(--transition); cursor: pointer; border-left: 3px solid var(--gold); border-radius: 4px;
+    flex: 1 0 200px;
+  }
+  .recent-card:hover { background: #faf5eb; border-color: rgba(189,149,68,0.4); }
+  .recent-title { font-size: 0.9rem; color: var(--parchment); margin-bottom: 0.2rem; font-weight: 500; display: flex; justify-content: space-between; align-items: baseline; }
+  .recent-date { font-family: var(--mono); font-size: 0.6rem; color: var(--gold-light); opacity: 0.8; font-weight: normal; }
+  .recent-meta { font-family: var(--mono); font-size: 0.65rem; color: var(--mist); opacity: 0.8; }
+  .recent-grid { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 1rem; padding-bottom: 0.5rem; scrollbar-width: thin; }
+
+  #no-results {
+    text-align: center;
+    padding: 3rem;
+    color: var(--mist);
+    opacity: 0.4;
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 1rem;
+    letter-spacing: 0.1em;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="header-title">
+      <h1>琉．修龍 <em>· 作品管理</em></h1>
+      <div class="subtitle">Writing Archive Dashboard</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-ghost btn-sm" onclick="App.exportJSON()">匯出 JSON</button>
+      <button class="btn btn-gold btn-sm" onclick="App.showImport()">匯入資料</button>
+    </div>
+  </header>
+
+  <nav id="main-nav">
+    <button class="nav-tab active" data-page="dashboard">總覽</button>
+    <button class="nav-tab" data-page="works">作品列表</button>
+    <button class="nav-tab" data-page="series">系列管理</button>
+    <button class="nav-tab" data-page="timeline">時間軸</button>
+    <button class="nav-tab" data-page="editor">資料編輯</button>
+    <button class="nav-tab" data-page="backup">資料備份</button>
+  </nav>
+
+  <main>
+    <!-- Dashboard -->
+    <div class="page active" id="page-dashboard">
+      <div class="section-title">總覽</div>
+      <div class="section-subtitle">Overview · Statistics</div>
+
+      <div class="kpi-grid" id="kpi-grid"></div>
+
+      <div class="charts-grid">
+        <div class="chart-panel wide">
+          <div class="chart-title">最近更新 (Top 5)</div>
+          <div id="recent-works-list" class="recent-grid"></div>
+        </div>
+        <div class="chart-panel wide" style="display: flex; gap: 2rem; flex-wrap: wrap;">
+          <div style="flex: 2; min-width: 300px; display: flex; flex-direction: column;">
+            <div class="chart-title" style="display: flex; justify-content: space-between; align-items: center;">
+               <span>每年產出字數趨勢</span>
+               <div style="display: flex; gap: 0.5rem;" id="year-chart-nav"></div>
+            </div>
+            <div style="position: relative; height: 280px; flex: 1;"><canvas id="chart-year"></canvas></div>
+          </div>
+          <div style="flex: 1; min-width: 220px; display: flex; flex-direction: column;">
+            <div class="chart-title">年度產出排行 (Top 6)</div>
+            <div id="year-list" style="flex: 1; padding-right: 0.5rem;"></div>
+          </div>
+        </div>
+        <div class="chart-panel chart-panel-inner-flex">
+          <div class="chart-title">各系列字數佔比 (Top 5)</div>
+          <div style="display: flex; gap: 1rem; flex: 1; align-items: center;">
+            <div style="position: relative; height: 160px; flex: 1; min-width: 0;"><canvas id="chart-pie"></canvas></div>
+            <div id="series-list" class="chart-list-container" style="flex: 1; border-top: none; margin-top: 0; padding-top: 0; border-left: 1px dashed rgba(189,149,68,0.15); padding-left: 0.5rem; max-height: 160px;"></div>
+          </div>
+        </div>
+        <div class="chart-panel chart-panel-inner-flex">
+          <div class="chart-title">作品狀態分布統計</div>
+          <div style="display: flex; gap: 1rem; flex: 1; align-items: center;">
+            <div style="position: relative; height: 160px; flex: 1; min-width: 0;"><canvas id="chart-status"></canvas></div>
+            <div id="status-list" class="chart-list-container" style="flex: 1; border-top: none; margin-top: 0; padding-top: 0; border-left: 1px dashed rgba(189,149,68,0.15); padding-left: 0.5rem; max-height: 160px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Works list -->
+    <div class="page" id="page-works">
+      <div class="section-title">作品列表</div>
+      <div class="section-subtitle">All Works · Filter &amp; Sort</div>
+
+      <div class="table-panel">
+        <div class="table-toolbar">
+          <input type="text" class="search-box" id="works-search" placeholder="搜尋篇名、系列…" oninput="App.filterWorks()">
+          <select class="filter-select" id="filter-series" onchange="App.filterWorks()">
+            <option value="">全部系列</option>
+          </select>
+          <select class="filter-select" id="filter-status" onchange="App.filterWorks()">
+            <option value="">全部狀態</option>
+            <option value="完成">完成</option>
+            <option value="已出版">已出版</option>
+            <option value="進行中">進行中</option>
+            <option value="規劃中">規劃中</option>
+          </select>
+          <select class="filter-select" id="filter-year" onchange="App.filterWorks()">
+            <option value="">全部年份</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="App.resetFilters()">清除篩選</button>
+          <button class="btn btn-ghost btn-sm" onclick="App.exportWorksCSV()">📥 匯出 CSV</button>
+          <button class="btn btn-gold btn-sm" onclick="App.showAddWork()">＋ 新增</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="data-table" id="works-table">
+            <thead>
+              <tr>
+                <th onclick="App.sortBy('date')" data-col="date">日期<span class="sort-indicator">↕</span></th>
+                <th onclick="App.sortBy('title')" data-col="title">篇名<span class="sort-indicator">↕</span></th>
+                <th onclick="App.sortBy('series')" data-col="series">系列<span class="sort-indicator">↕</span></th>
+                <th onclick="App.sortBy('subSeries')" data-col="subSeries">子系列<span class="sort-indicator">↕</span></th>
+                <th onclick="App.sortBy('status')" data-col="status">狀態<span class="sort-indicator">↕</span></th>
+                <th onclick="App.sortBy('wordCount')" data-col="wordCount">字數<span class="sort-indicator">↕</span></th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="works-tbody"></tbody>
+          </table>
+        </div>
+        <div id="no-results" style="display:none">— 沒有符合的作品 —</div>
+        <div class="table-pagination" id="works-pagination"></div>
+      </div>
+    </div>
+
+    <!-- Series -->
+    <div class="page" id="page-series">
+      <div class="section-title">系列管理</div>
+      <div class="section-subtitle">Series · Group Overview</div>
+      <div class="series-overview-grid" id="series-grid"></div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="page" id="page-timeline">
+      <div class="section-title">時間軸</div>
+      <div class="section-subtitle">Timeline · Chronological View</div>
+
+      <div style="display:flex;gap:0.75rem;margin-bottom:1.5rem;flex-wrap:wrap;align-items:center;">
+        <!-- Mode toggle -->
+        <div style="display:flex;border:1px solid rgba(201,168,76,0.25);overflow:hidden;">
+          <button class="tl-mode-btn active" id="tl-btn-year" onclick="App.setTlMode('year')" style="padding:0.45rem 1rem;font-family:var(--mono);font-size:0.62rem;letter-spacing:0.12em;background:rgba(201,168,76,0.12);color:var(--gold-light);border:none;cursor:pointer;transition:var(--transition);">年度總覽</button>
+          <button class="tl-mode-btn" id="tl-btn-detail" onclick="App.setTlMode('detail')" style="padding:0.45rem 1rem;font-family:var(--mono);font-size:0.62rem;letter-spacing:0.12em;background:transparent;color:var(--mist);border:none;cursor:pointer;transition:var(--transition);">詳細清單</button>
+        </div>
+        <!-- Order toggle -->
+        <button id="tl-order-btn" onclick="App.toggleTlOrder()" class="btn btn-ghost btn-sm">↓ 新→舊</button>
+        <!-- Series filter (detail mode only) -->
+        <select class="filter-select" id="tl-filter-series" onchange="App.renderTimeline()" style="display:none;">
+          <option value="">全部系列</option>
+        </select>
+        <select class="filter-select" id="tl-filter-status" onchange="App.renderTimeline()" style="display:none;">
+          <option value="">全部狀態</option>
+          <option value="完成">完成</option>
+          <option value="已出版">已出版</option>
+          <option value="進行中">進行中</option>
+          <option value="規劃中">規劃中</option>
+        </select>
+        <span id="tl-count" style="font-family:var(--mono);font-size:0.65rem;color:var(--mist);opacity:0.5;margin-left:auto;"></span>
+      </div>
+      <div id="timeline-container"></div>
+    </div>
+
+    <!-- Editor -->
+    <div class="page" id="page-editor">
+      <div class="section-title">資料編輯</div>
+      <div class="section-subtitle">Edit Config · Manage Data</div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+        <div>
+          <div class="section-title" style="font-size:1rem;margin-bottom:0;">系列列表</div>
+          <div class="section-subtitle" style="margin-bottom:0;">點擊系列可編輯或管理旗下作品</div>
+        </div>
+        <button class="btn btn-gold btn-sm" onclick="App.showAddSeries()">＋ 新增系列</button>
+      </div>
+
+      <div class="editor-layout">
+        <div class="series-list-panel" id="series-list-panel"></div>
+        <div class="editor-panel" id="editor-main-panel">
+          <div style="color:var(--mist);opacity:0.4;font-family:var(--serif);font-style:italic;font-size:0.9rem;padding:2rem 0;text-align:center;">
+            從左側選擇系列以編輯
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Backup -->
+    <div class="page" id="page-backup">
+      <div class="section-title">資料備份</div>
+      <div class="section-subtitle">Import &amp; Export JSON</div>
+
+      <div class="io-grid">
+        <div class="io-card">
+          <h3>匯入 JSON</h3>
+          <p>將先前匯出的 JSON 檔案拖入下方區域，或點擊選取檔案，即可完整還原資料。</p>
+          <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+            <input type="file" id="file-input" accept=".json" onchange="App.handleFileImport(event)">
+            將 JSON 檔拖放至此，或點擊選取
+          </div>
+        </div>
+        <div class="io-card">
+          <h3>匯出 JSON</h3>
+          <p>將目前所有資料（作品、系列設定）匯出為 JSON 檔案，可用於備份或跨裝置同步。</p>
+          <button class="btn btn-gold" onclick="App.exportJSON()" style="margin-bottom:0.75rem;">下載 JSON 檔案</button>
+          <div id="json-preview"></div>
+        </div>
+        <div class="io-card" style="grid-column: 1 / -1; border-color: rgba(192,57,43,0.3);">
+          <h3 style="color: #c0392b;">⚠ 危險操作</h3>
+          <p>將清空系統內所有的作品與系列設定，恢復為完全空白的初始狀態。此操作無法復原，強烈建議執行前先匯出 JSON 備份。</p>
+          <button class="btn btn-danger-solid" onclick="App.clearAllData()">清除所有資料</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)App.closeModal()">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+<script>
+// ═══════════════════════════════════════════════
+//  DEFAULT DATA
+// ═══════════════════════════════════════════════
+const DEFAULT_DATA = {
+  meta: { title: "藍月傳說 · 作品管理", version: "1.0" },
+  series: [
+    { id: "blue_moon_2019", name: "藍月傳說．光", color: "#c9a84c", excludeFromStats: false },
+    { id: "blue_moon_2026", name: "藍月傳說．2026", color: "#4a9e9e", excludeFromStats: false },
+    { id: "blue_moon_extra", name: "藍月傳說．外傳", color: "#8b6db0", excludeFromStats: false },
+    { id: "blue_moon_after", name: "藍月傳說．後傳", color: "#6b8b4a", excludeFromStats: false },
+    { id: "requiem", name: "安息者", color: "#8b1a1a", excludeFromStats: false },
+    { id: "adventurer", name: "冒險者系列", color: "#4a6b8b", excludeFromStats: false },
+    { id: "contest", name: "比賽用系列", color: "#8b7a4a", excludeFromStats: false },
+    { id: "cantissinor", name: "坎提西諾爾", color: "#6b4a8b", excludeFromStats: false },
+    { id: "commission", name: "委託與轉蛋", color: "#4a8b6b", excludeFromStats: false },
+    { id: "misc", name: "短篇/二創/ETC", color: "#7a7a7a", excludeFromStats: false },
+  ],
+  works: [
+    // 藍月傳說．光
+    {id:"bm2019_01",date:"2019-11-01",title:"藍月01、塔內的王子殿下",series:"blue_moon_2019",subSeries:"藍月2019",status:"已出版",wordCount:62189},
+    {id:"bm2019_02",date:"2019-12-01",title:"藍月02、汙穢的聖女",series:"blue_moon_2019",subSeries:"藍月2019",status:"已出版",wordCount:65862},
+    {id:"bm2019_03",date:"2020-01-01",title:"藍月03、叛逆的聖者",series:"blue_moon_2019",subSeries:"藍月2019",status:"已出版",wordCount:63315},
+    {id:"bm2019_04",date:"2020-02-01",title:"藍月04、憂鬱的死神",series:"blue_moon_2019",subSeries:"藍月2019",status:"已出版",wordCount:66045},
+    {id:"bm2019_05",date:"2020-03-01",title:"藍月05、水沒都市",series:"blue_moon_2019",subSeries:"藍月2019",status:"已出版",wordCount:60594},
+    {id:"bm2019_06",date:"2020-04-01",title:"藍月06、混沌之子",series:"blue_moon_2019",subSeries:"藍月2019",status:"已出版",wordCount:62427},
+    {id:"bm2019_07",date:"2020-06-01",title:"藍月07、不滅的龍",series:"blue_moon_2019",subSeries:"藍月2019",status:"已出版",wordCount:60510},
+    {id:"bm2019_08",date:"2020-06-01",title:"藍月08、水都的亡靈",series:"blue_moon_2019",subSeries:"藍月2019",status:"已出版",wordCount:59575},
+    {id:"bm2019_09",date:"2020-07-01",title:"藍月09、聖女的回歸",series:"blue_moon_2019",subSeries:"藍月2019",status:"已出版",wordCount:62272},
+    {id:"bm2019_10",date:"2020-08-01",title:"藍月10、黎明的號角",series:"blue_moon_2019",subSeries:"藍月2019",status:"已出版",wordCount:58414},
+    {id:"bm2019_11",date:"2020-09-01",title:"藍月11、安息前夜",series:"blue_moon_2019",subSeries:"藍月2019",status:"已出版",wordCount:59493},
+    {id:"bm2019_12",date:"2020-10-01",title:"藍月12、往昔的榮光",series:"blue_moon_2019",subSeries:"藍月2019",status:"已出版",wordCount:60013},
+    {id:"bm2019_13",date:"2020-11-01",title:"藍月13、聖都的女王閣下",series:"blue_moon_2019",subSeries:"藍月2019",status:"已出版",wordCount:60273},
+    {id:"bm2019_14",date:"2021-01-01",title:"藍月14、雨都的紅色惡靈",series:"blue_moon_2019",subSeries:"藍月2019",status:"已出版",wordCount:63651},
+    {id:"bm2019_15",date:"2021-03-01",title:"藍月15、群魔的盛宴",series:"blue_moon_2019",subSeries:"藍月2019",status:"已出版",wordCount:60934},
+    {id:"bm2019_16",date:"2021-04-28",title:"藍月16、滄雨的魔王陛下",series:"blue_moon_2019",subSeries:"藍月2019",status:"已出版",wordCount:92450},
+    // 藍月傳說．2026
+    {id:"bm26_01",date:"2022-07-01",title:"藍月01、塔內的王子殿下",series:"blue_moon_2026",subSeries:"藍月傳說",status:"完成",wordCount:168361},
+    {id:"bm26_02",date:"2023-04-01",title:"藍月02、叛逆的聖者",series:"blue_moon_2026",subSeries:"藍月傳說",status:"完成",wordCount:130187},
+    {id:"bm26_03",date:"2024-01-01",title:"藍月03、汙穢的聖女",series:"blue_moon_2026",subSeries:"藍月傳說",status:"完成",wordCount:148472},
+    {id:"bm26_04",date:"2024-10-01",title:"藍月04、水沒都市",series:"blue_moon_2026",subSeries:"藍月傳說",status:"完成",wordCount:102565},
+    {id:"bm26_05",date:"2025-04-01",title:"藍月05、混沌之子",series:"blue_moon_2026",subSeries:"藍月傳說",status:"完成",wordCount:136435},
+    {id:"bm26_06",date:"2025-07-01",title:"藍月06、不滅的龍",series:"blue_moon_2026",subSeries:"藍月傳說",status:"完成",wordCount:77976},
+    {id:"bm26_07",date:"2025-08-26",title:"藍月07、水都的亡靈",series:"blue_moon_2026",subSeries:"藍月傳說",status:"完成",wordCount:107819},
+    {id:"bm26_08",date:"2025-11-16",title:"藍月08、聖女的回歸",series:"blue_moon_2026",subSeries:"藍月傳說",status:"完成",wordCount:102960},
+    {id:"bm26_09",date:"2026-01-05",title:"藍月09、掌心裡的暖陽",series:"blue_moon_2026",subSeries:"藍月傳說",status:"完成",wordCount:88594},
+    {id:"bm26_10",date:"2026-01-26",title:"藍月10、黎明的號角",series:"blue_moon_2026",subSeries:"藍月傳說",status:"完成",wordCount:88886},
+    {id:"bm26_11",date:"2026-02-04",title:"藍月11、遲暮的獅子",series:"blue_moon_2026",subSeries:"藍月傳說",status:"完成",wordCount:92825},
+    {id:"bm26_12",date:"2026-02-10",title:"藍月12、奧羅拉的晨曦",series:"blue_moon_2026",subSeries:"藍月傳說",status:"完成",wordCount:88896},
+    {id:"bm26_13",date:"2026-02-17",title:"藍月13、深淵的凝視",series:"blue_moon_2026",subSeries:"藍月傳說",status:"完成",wordCount:96317},
+    {id:"bm26_14",date:"2026-02-20",title:"藍月14、群魔的盛宴",series:"blue_moon_2026",subSeries:"藍月傳說",status:"完成",wordCount:96446},
+    {id:"bm26_15",date:"2026-03-01",title:"藍月15、滄雨的魔王陛下",series:"blue_moon_2026",subSeries:"藍月傳說",status:"完成",wordCount:87100},
+    {id:"bm26_16",date:"2026-03-15",title:"藍月16、霧都的紅色惡靈",series:"blue_moon_2026",subSeries:"藍月傳說",status:"完成",wordCount:88452},
+    {id:"bm26_17",date:"2026-04-05",title:"藍月17、神代的終焉",series:"blue_moon_2026",subSeries:"藍月傳說",status:"完成",wordCount:116221},
+    // 藍月外傳
+    {id:"bme_01",date:"2010-02-23",title:"おやすみなさい",series:"blue_moon_extra",subSeries:"藍月傳說．雪",status:"完成",wordCount:15897},
+    {id:"bme_02",date:"2010-12-08",title:"ユキ見たい",series:"blue_moon_extra",subSeries:"藍月傳說．雪",status:"完成",wordCount:16969},
+    {id:"bme_03",date:"2011-01-29",title:"Rose -Tinted Dreams",series:"blue_moon_extra",subSeries:"藍月傳說．雪",status:"完成",wordCount:30019},
+    {id:"bme_04",date:"2010-03-07",title:"お誕生日おめでとう ♥",series:"blue_moon_extra",subSeries:"藍月傳說．雪",status:"完成",wordCount:7244},
+    {id:"bme_05",date:"2012-01-06",title:"あの日、あの雨、この雪",series:"blue_moon_extra",subSeries:"藍月傳說．雪",status:"完成",wordCount:6024},
+    {id:"bme_06",date:"2010-09-09",title:"琉璃姬",series:"blue_moon_extra",subSeries:"藍月傳說．雪",status:"完成",wordCount:11592},
+    {id:"bme_07",date:"2009-01-06",title:"姬之墓",series:"blue_moon_extra",subSeries:"藍月傳說．雪",status:"完成",wordCount:5321},
+    {id:"bme_08",date:"2011-09-20",title:"下雨之前/滄雨",series:"blue_moon_extra",subSeries:"藍月傳說．雪",status:"完成",wordCount:4074},
+    {id:"bme_09",date:"2008-01-24",title:"天墮",series:"blue_moon_extra",subSeries:"藍月傳說．暗",status:"完成",wordCount:12424},
+    {id:"bme_10",date:"2019-08-28",title:"罪詠",series:"blue_moon_extra",subSeries:"藍月傳說．暗",status:"完成",wordCount:62019},
+    {id:"bme_11",date:"2019-07-28",title:"女武神的黑玫瑰",series:"blue_moon_extra",subSeries:"藍月傳說．暗",status:"完成",wordCount:62707},
+    {id:"bme_12",date:"2009-01-01",title:"風之華",series:"blue_moon_extra",subSeries:"藍月傳說．暗",status:"完成",wordCount:82535},
+    {id:"bme_13",date:"2009-01-01",title:"闇之華",series:"blue_moon_extra",subSeries:"藍月傳說．暗",status:"完成",wordCount:10496},
+    {id:"bme_14",date:"2010-08-11",title:"鐘塔",series:"blue_moon_extra",subSeries:"藍月傳說．暗",status:"完成",wordCount:3083},
+    {id:"bme_15",date:"2006-03-19",title:"尤爾的一天",series:"blue_moon_extra",subSeries:"藍月傳說．玄",status:"完成",wordCount:3236},
+    {id:"bme_16",date:"2011-07-30",title:"仰望",series:"blue_moon_extra",subSeries:"藍月傳說．玄",status:"完成",wordCount:6980},
+    {id:"bme_17",date:"2019-11-06",title:"神代の物語",series:"blue_moon_extra",subSeries:"藍月傳說．雪",status:"完成",wordCount:18740},
+    {id:"bme_18",date:"2011-02-05",title:"夢的安魂曲",series:"blue_moon_extra",subSeries:"藍月傳說．玄",status:"完成",wordCount:18436},
+    // 後傳
+    {id:"bma_01",date:"2022-01-01",title:"龍王．異端的精靈與無名龍王",series:"blue_moon_after",subSeries:"藍月後傳",status:"完成",wordCount:21679},
+    {id:"bma_02",date:"2022-02-01",title:"龍組．常悠的龍妃大人",series:"blue_moon_after",subSeries:"藍月後傳",status:"完成",wordCount:12355},
+    {id:"bma_03",date:"2022-02-01",title:"花組．魔王陛下的休息日",series:"blue_moon_after",subSeries:"藍月後傳",status:"完成",wordCount:7992},
+    {id:"bma_04",date:"2022-06-01",title:"罪衍．片刻休息",series:"blue_moon_after",subSeries:"藍月後傳",status:"完成",wordCount:20641},
+    {id:"bma_05",date:"2022-07-01",title:"罪衍．引誘",series:"blue_moon_after",subSeries:"藍月外傳",status:"完成",wordCount:4481},
+    {id:"bma_06",date:"2023-01-01",title:"龍組．常悠龍妃的睡眠",series:"blue_moon_after",subSeries:"藍月後傳",status:"完成",wordCount:13161},
+    {id:"bma_07",date:"2023-02-01",title:"花組．聖女大人的煩惱",series:"blue_moon_after",subSeries:"藍月後傳",status:"完成",wordCount:12405},
+    {id:"bma_08",date:"2024-08-01",title:"罪衍．騎士團長的勳章",series:"blue_moon_after",subSeries:"藍月後傳",status:"完成",wordCount:3554},
+    {id:"bma_09",date:"2025-02-01",title:"非人．神之子的戀愛學分",series:"blue_moon_after",subSeries:"藍月外傳",status:"完成",wordCount:7594},
+    {id:"bma_10",date:"2025-03-01",title:"非人．神之子來自深淵",series:"blue_moon_after",subSeries:"藍月外傳",status:"完成",wordCount:6102},
+    {id:"bma_11",date:"2025-04-01",title:"龍王．此愛異端",series:"blue_moon_after",subSeries:"藍月後傳",status:"完成",wordCount:17826},
+    {id:"bma_12",date:"2024-02-01",title:"花組．在晨曦中等待",series:"blue_moon_after",subSeries:"藍月外傳",status:"完成",wordCount:10641},
+    {id:"bma_13",date:"2020-06-01",title:"花組．夢靨/R",series:"blue_moon_after",subSeries:"藍月外傳",status:"完成",wordCount:1735},
+    {id:"bma_14",date:"2020-06-01",title:"花組．年少/R",series:"blue_moon_after",subSeries:"藍月外傳",status:"完成",wordCount:4584},
+    {id:"bma_15",date:"2026-04-26",title:"龍組．溫柔地捕獲龍的方法",series:"blue_moon_after",subSeries:"藍月外傳",status:"完成",wordCount:21050},
+    { id: "bma_16", date: "2026-06-16", title: "罪詠．帝國之花的餘香", series: "blue_moon_after", subSeries: "藍月外傳", status: "完成", wordCount: 30842 },
+    // 安息者
+    {id:"req_01",date:"2018-12-21",title:"安息者#5 最後的聖者",series:"requiem",subSeries:"安息者3",status:"完成",wordCount:83697},
+    {id:"req_02",date:"2019-10-25",title:"安息者#4 其名為神之劍",series:"requiem",subSeries:"安息者2",status:"完成",wordCount:101684},
+    {id:"req_03",date:"2019-08-30",title:"安息者#3 只為你盛開的人造花",series:"requiem",subSeries:"安息者2",status:"完成",wordCount:100611},
+    {id:"req_04",date:"2019-05-30",title:"安息者#2 獻給您的鎮魂歌",series:"requiem",subSeries:"安息者1",status:"完成",wordCount:94518},
+    {id:"req_05",date:"2019-05-30",title:"安息者#1 人偶王子與夏之公主",series:"requiem",subSeries:"安息者1",status:"完成",wordCount:101013},
+    {id:"req_06",date:"2014-08-25",title:"【短篇】親愛的芙妮塔",series:"requiem",subSeries:"安息者",status:"完成",wordCount:7831},
+    {id:"req_07",date:"2014-08-10",title:"【短篇】蘋果大人",series:"requiem",subSeries:"安息者",status:"完成",wordCount:7893},
+    {id:"req_08",date:"2014-01-01",title:"某個人偶化妝師的故事",series:"requiem",subSeries:"短篇集",status:"進行中",wordCount:0},
+    {id:"req_09",date:"2014-04-01",title:"【短篇】跳舞娃娃",series:"requiem",subSeries:"安息者",status:"完成",wordCount:5056},
+    {id:"req_10",date:"2017-03-05",title:"安息者01前傳：咲けない花",series:"requiem",subSeries:"安息者",status:"完成",wordCount:7259},
+    {id:"req_11",date:"2017-07-20",title:"安息者01前傳：萊恩篇/夏季之前",series:"requiem",subSeries:"安息者",status:"完成",wordCount:23126},
+    {id:"req_12",date:"2017-10-31",title:"安息者01番外：你的歌姬",series:"requiem",subSeries:"安息者",status:"完成",wordCount:8760},
+    {id:"req_13",date:"2017-01-01",title:"安息者01補寫：黑曜石與黑曜石",series:"requiem",subSeries:"安息者",status:"完成",wordCount:3200},
+    // 冒險者
+    {id:"adv_01",date:"2007-02-13",title:"盜王 (上) 黑夜的王者",series:"adventurer",subSeries:"盜王",status:"完成",wordCount:88111},
+    {id:"adv_02",date:"2005-08-24",title:"盜王 (下) 危機四伏",series:"adventurer",subSeries:"盜王",status:"完成",wordCount:78216},
+    { id: "adv_03", date: "2015-09-02", title: "冒險者01 遺失的聖劍埃爾薩梅", series: "adventurer", subSeries: "召喚師", status: "完成", wordCount: 101299 },
+    {id:"adv_04",date:"2017-06-30",title:"冒險者02 親愛的瑟爾芬陛下",series:"adventurer",subSeries:"召喚師",status:"完成",wordCount:87333},
+    {id:"adv_05",date:"2026-05-15",title:"冒險者03 心愛的魔女小姐",series:"adventurer",subSeries:"召喚師",status:"完成",wordCount:97000},
+    {id:"adv_06",date:"2026-12-31",title:"冒險者04 安息之森的冰雪女王",series:"adventurer",subSeries:"魔女",status:"規劃中",wordCount:0},
+    {id:"adv_07",date:"2027-06-30",title:"冒險者05 冰雪女王與籠中暴君",series:"adventurer",subSeries:"魔女",status:"規劃中",wordCount:0},
+    {id:"adv_08",date:"2028-01-01",title:"冒險者06 風之精靈女王",series:"adventurer",subSeries:"",status:"規劃中",wordCount:0},
+    // 比賽
+    {id:"con_01",date:"2025-08-15",title:"冥王的契約渡鴉",series:"contest",subSeries:"",status:"完成",wordCount:100000},
+    {id:"con_02",date:"2025-05-15",title:"諸神的惡作劇",series:"contest",subSeries:"",status:"完成",wordCount:4936},
+    // 坎提
+    {id:"can_01",date:"2009-01-01",title:"猫様 ねこさま♥",series:"cantissinor",subSeries:"貓樣",status:"完成",wordCount:43106},
+    {id:"can_02",date:"2009-04-09",title:"貓的步伐",series:"cantissinor",subSeries:"貓樣",status:"完成",wordCount:11864},
+    {id:"can_03",date:"2009-05-24",title:"僕の猫様",series:"cantissinor",subSeries:"貓樣",status:"完成",wordCount:7515},
+    {id:"can_04",date:"2010-07-13",title:"坎提西諾爾Ⅰ籠中鳥",series:"cantissinor",subSeries:"坎提Ⅰ",status:"完成",wordCount:50603},
+    {id:"can_05",date:"2010-08-08",title:"Cageling(SP1) カナリア",series:"cantissinor",subSeries:"坎提Ⅰ",status:"完成",wordCount:3344},
+    {id:"can_06",date:"2010-08-16",title:"Cageling(SP2) 毒師、女王與騎士",series:"cantissinor",subSeries:"坎提Ⅰ",status:"完成",wordCount:3285},
+    {id:"can_07",date:"2009-08-25",title:"(短篇) Elf, Toxit",series:"cantissinor",subSeries:"坎提Ⅰ",status:"完成",wordCount:3516},
+    {id:"can_08",date:"2009-07-26",title:"深い森",series:"cantissinor",subSeries:"坎提Ⅰ",status:"完成",wordCount:4597},
+    {id:"can_09",date:"2010-10-25",title:"坎提西諾爾 Ⅱ 雪櫻（新版）",series:"cantissinor",subSeries:"坎提Ⅱ",status:"完成",wordCount:66828},
+    {id:"can_10",date:"2010-12-10",title:"OOC (SP1) 戀愛中毒",series:"cantissinor",subSeries:"坎提Ⅱ",status:"完成",wordCount:24723},
+    {id:"can_11",date:"2011-02-25",title:"OOC (SP2) 黑貓的憂鬱",series:"cantissinor",subSeries:"坎提Ⅱ",status:"完成",wordCount:24813},
+    {id:"can_12",date:"2011-12-17",title:"坎提西諾爾 4 Canary",series:"cantissinor",subSeries:"坎提IV",status:"完成",wordCount:91008},
+    {id:"can_13",date:"2012-05-21",title:"Canary(SP) ありがとうございます",series:"cantissinor",subSeries:"坎提 IV",status:"完成",wordCount:8134},
+    {id:"can_14",date:"2012-06-10",title:"Canary (SP) The Last Adventure",series:"cantissinor",subSeries:"坎提 IV",status:"完成",wordCount:9403},
+    // 委託
+    {id:"com_01",date:"2020-06-01",title:"委託跟轉蛋 2020",series:"commission",subSeries:"",status:"完成",wordCount:36439},
+    {id:"com_02",date:"2021-06-01",title:"委託跟轉蛋 2021",series:"commission",subSeries:"",status:"完成",wordCount:56931},
+    {id:"com_03",date:"2023-06-01",title:"費南伊連的新娘．上",series:"commission",subSeries:"",status:"完成",wordCount:132601},
+    {id:"com_04",date:"2024-06-01",title:"費南伊連的新娘．下",series:"commission",subSeries:"",status:"完成",wordCount:145617},
+    // 短篇
+    {id:"ms_01",date:"2005-01-01",title:"水色夢幻城",series:"misc",subSeries:"短篇",status:"完成",wordCount:8945},
+    {id:"ms_02",date:"2005-01-01",title:"銀",series:"misc",subSeries:"短篇",status:"完成",wordCount:2849},
+    {id:"ms_03",date:"2010-02-16",title:"愛麗絲雙子",series:"misc",subSeries:"短篇",status:"完成",wordCount:10147},
+    {id:"ms_04",date:"2010-03-17",title:"繃帶",series:"misc",subSeries:"短篇",status:"完成",wordCount:1902},
+    {id:"ms_05",date:"2010-02-12",title:"最初，所以最美",series:"misc",subSeries:"短篇",status:"完成",wordCount:700},
+    {id:"ms_06",date:"2010-03-20",title:"桃花令",series:"misc",subSeries:"短篇",status:"完成",wordCount:2046},
+    {id:"ms_07",date:"2010-04-10",title:"驚蟄—桃始華",series:"misc",subSeries:"短篇",status:"完成",wordCount:586},
+    {id:"ms_08",date:"2010-04-25",title:"守墓人",series:"misc",subSeries:"短篇",status:"完成",wordCount:826},
+    {id:"ms_09",date:"2010-04-17",title:"四月一日",series:"misc",subSeries:"短篇",status:"完成",wordCount:657},
+    {id:"ms_10",date:"2010-04-22",title:"多話的男子",series:"misc",subSeries:"短篇",status:"完成",wordCount:862},
+    {id:"ms_11",date:"2010-07-10",title:"教皇",series:"misc",subSeries:"短篇",status:"完成",wordCount:793},
+    {id:"ms_12",date:"2008-01-01",title:"短篇收集 -1",series:"misc",subSeries:"短篇",status:"完成",wordCount:17935},
+    {id:"ms_13",date:"2012-09-02",title:"盛裝舞步",series:"misc",subSeries:"短篇",status:"完成",wordCount:3528},
+    {id:"ms_14",date:"2021-09-03",title:"第一個追隨者",series:"misc",subSeries:"短篇",status:"完成",wordCount:1096},
+    {id:"ms_15",date:"2022-10-22",title:"半睡的朝陽",series:"misc",subSeries:"二創",status:"完成",wordCount:1734},
+    {id:"ms_16",date:"2022-10-22",title:"生日禮物",series:"misc",subSeries:"二創",status:"完成",wordCount:1641},
+    {id:"ms_17",date:"2022-10-22",title:"不守約定",series:"misc",subSeries:"二創",status:"完成",wordCount:2799},
+    {id:"ms_18",date:"2016-06-02",title:"那時候的南瓜派很難吃",series:"misc",subSeries:"二創",status:"完成",wordCount:4664},
+    {id:"ms_19",date:"2010-11-19",title:"人柱愛利絲",series:"misc",subSeries:"二創",status:"完成",wordCount:4289},
+    {id:"ms_20",date:"2011-02-22",title:"鬼與少女",series:"misc",subSeries:"二創",status:"完成",wordCount:4133},
+    {id:"ms_21",date:"2023-03-06",title:"新月的假面舞會(01)",series:"misc",subSeries:"R18",status:"完成",wordCount:2920},
+    {id:"ms_22",date:"2024-05-30",title:"萊桑德的惡夢",series:"misc",subSeries:"R18",status:"完成",wordCount:6174},
+  ]
+};
+
+// ═══════════════════════════════════════════════
+//  APP STATE
+// ═══════════════════════════════════════════════
+const App = (() => {
+  let state = {
+    data: null,
+    currentPage: 'dashboard',
+    worksFilter: { search: '', series: '', status: '', year: '' },
+    worksSortCol: 'date',
+    worksSortDir: 'desc',
+    worksPage: 1,
+    worksPageSize: 25,
+    charts: {},
+    selectedSeriesId: null,
+    tlMode: 'year',   // 'year' | 'detail'
+    tlOrder: 'desc',  // 'desc' | 'asc'
+    yearChartPage: null,
+    showPlanned: false
+  };
+
+  // ── Storage ──
+  function loadData() {
+    try {
+      const raw = localStorage.getItem('writing_archive_v1');
+      if (raw) state.data = JSON.parse(raw);
+      else state.data = JSON.parse(JSON.stringify(DEFAULT_DATA));
+    } catch { state.data = JSON.parse(JSON.stringify(DEFAULT_DATA)); }
+  }
+
+  function saveData() {
+    try { localStorage.setItem('writing_archive_v1', JSON.stringify(state.data)); }
+    catch(e) { toast('儲存失敗：' + e.message, true); }
+  }
+
+  // ── Utils ──
+  function uid() { return 'w_' + Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+  function fmtNum(n) {
+    if (!n) return '—';
+    return n.toLocaleString('zh-TW');
+  }
+
+  function getYear(date) {
+    if (!date) return '—';
+    return String(date).slice(0, 4);
+  }
+
+  function seriesById(id) { return state.data.series.find(s => s.id === id); }
+  function seriesName(id) { const s = seriesById(id); return s ? s.name : id; }
+  function seriesColor(id) { const s = seriesById(id); return s ? s.color : '#888'; }
+
+  function statusBadge(s) {
+    const map = { '完成':'done','已出版':'pub','已完成':'done','進行中':'wip','規劃中':'plan' };
+    const cls = map[s] || 'plan';
+    return `<span class="badge badge-${cls}">${s||'—'}</span>`;
+  }
+
+  function toast(msg, isError=false) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'show' + (isError?' error':'');
+    clearTimeout(el._t);
+    el._t = setTimeout(() => el.className = '', 3000);
+  }
+
+  // ── Navigation ──
+  function initNav() {
+    document.querySelectorAll('.nav-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const page = btn.dataset.page;
+        document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('page-' + page).classList.add('active');
+        state.currentPage = page;
+        renderPage(page);
+      });
+    });
+  }
+
+  function renderPage(page) {
+    if (page === 'dashboard') renderDashboard();
+    if (page === 'works') renderWorks();
+    if (page === 'series') renderSeriesPage();
+    if (page === 'timeline') renderTimeline();
+    if (page === 'editor') renderEditor();
+    if (page === 'backup') updateJsonPreview();
+  }
+
+  function togglePlanned() {
+    state.showPlanned = !state.showPlanned;
+    const btn = document.getElementById('btn-toggle-planned');
+    if (btn) btn.innerHTML = state.showPlanned ? '👁️ 顯示規劃中: 開' : '👁️ 顯示規劃中: 關';
+    renderPage(state.currentPage);
+  }
+  
+  function setTlMode(mode) {
+    state.tlMode = mode;
+    document.querySelectorAll('.tl-mode-btn').forEach(btn => {
+      btn.style.background = btn.id === `tl-btn-${mode}` ? 'rgba(201,168,76,0.12)' : 'transparent';
+      btn.style.color = btn.id === `tl-btn-${mode}` ? 'var(--gold-light)' : 'var(--mist)';
+    });
+    const showFilters = mode === 'detail';
+    document.getElementById('tl-filter-series').style.display = showFilters ? '' : 'none';
+    document.getElementById('tl-filter-status').style.display = showFilters ? '' : 'none';
+    renderTimeline();
+  }
+
+  function toggleTlOrder() { state.tlOrder = state.tlOrder === 'asc' ? 'desc' : 'asc'; document.getElementById('tl-order-btn').textContent = state.tlOrder === 'asc' ? '↑ 舊→新' : '↓ 新→舊'; renderTimeline(); }
+
+  // ── Dashboard ──
+  function excludedSeriesIds() {
+    return new Set((state.data.series||[]).filter(s=>s.excludeFromStats).map(s=>s.id));
+  }
+
+  function statsWorks() {
+    const exc = excludedSeriesIds();
+    return state.data.works.filter(w => !exc.has(w.series) && (state.showPlanned || w.status !== '規劃中'));
+  }
+
+  function renderDashboard() {
+    const works = statsWorks();
+    const allWorks = state.data.works;
+    const total = works.reduce((s,w) => s + (w.wordCount||0), 0);
+    const done = works.filter(w => w.status==='完成'||w.status==='已出版'||w.status==='已完成');
+    const doneCount = done.length;
+    const seriesCount = state.data.series.filter(s=>!s.excludeFromStats).length;
+    const wip = works.filter(w => w.status==='進行中').length;
+    const planned = works.filter(w => w.status==='規劃中').length;
+    const excCount = state.data.series.filter(s=>s.excludeFromStats).length;
+
+    // 新增：今年產出
+    const currentYear = new Date().getFullYear().toString();
+    const thisYearWorks = works.filter(w => getYear(w.date) === currentYear);
+    const thisYearTotal = thisYearWorks.reduce((s, w) => s + (w.wordCount || 0), 0);
+    const thisYearDone = thisYearWorks.filter(w => ['完成','已出版','已完成'].includes(w.status)).length;
+
+    document.getElementById('kpi-grid').innerHTML = `
+      <div class="kpi-card">
+        <div class="kpi-label">總字數${excCount?` <span style="opacity:0.45;font-size:0.55rem;">（已排除 ${excCount} 個系列）</span>`:''}</div>
+        <div class="kpi-value">${(total/10000).toFixed(1)}<span>萬字</span></div>
+        <div class="kpi-sub">${fmtNum(total)} 字</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">今年產出 (${currentYear})</div>
+        <div class="kpi-value">${(thisYearTotal/10000).toFixed(1)}<span>萬字</span></div>
+        <div class="kpi-sub">共 ${thisYearWorks.length} 篇 · 完成 ${thisYearDone} 篇</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">作品總數</div>
+        <div class="kpi-value">${works.length}<span>篇</span></div>
+        <div class="kpi-sub">全部含短篇 ${allWorks.length} 篇</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">已完成</div>
+        <div class="kpi-value">${doneCount}<span>篇</span></div>
+        <div class="kpi-sub">${Math.round(doneCount/Math.max(works.length,1)*100)}% 完成率</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">統計系列數</div>
+        <div class="kpi-value">${seriesCount}<span>個</span></div>
+        <div class="kpi-sub">進行中 ${wip} · 規劃中 ${planned}</div>
+      </div>
+    `;
+
+    renderYearChart();
+    renderPieChart();
+    renderStatusChart();
+    renderRecentWorks();
+  }
+
+  function renderYearChart() {
+    const byYear = {};
+    statsWorks().forEach(w => {
+      const y = getYear(w.date);
+      if (y === '—') return;
+      byYear[y] = (byYear[y]||0) + (w.wordCount||0);
+    });
+    const allYears = Object.keys(byYear).sort();
+    
+    const pageSize = 10;
+    const totalPages = Math.ceil(allYears.length / pageSize) || 1;
+    if (state.yearChartPage === null) {
+        state.yearChartPage = 0; // 0 代表最新的一頁 (近10年)
+    }
+    if (state.yearChartPage >= totalPages) state.yearChartPage = totalPages - 1;
+    if (state.yearChartPage < 0) state.yearChartPage = 0;
+
+    // 由後往前切片，確保首頁一定包含最新年份且最多顯示 10 年
+    const endIdx = allYears.length - (state.yearChartPage * pageSize);
+    const startIdx = Math.max(0, endIdx - pageSize);
+    const years = allYears.slice(startIdx, endIdx);
+    const vals = years.map(y => byYear[y]);
+
+    const ctx = document.getElementById('chart-year').getContext('2d');
+    if (state.charts.year) state.charts.year.destroy();
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, 200);
+    gradient.addColorStop(0, 'rgba(201,168,76,0.6)');
+    gradient.addColorStop(1, 'rgba(201,168,76,0.05)');
+
+    state.charts.year = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: years,
+        datasets: [{
+          label: '字數',
+          data: vals,
+          backgroundColor: gradient,
+          borderColor: 'rgba(201,168,76,0.8)',
+          borderWidth: 1,
+          borderRadius: 2,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false }, tooltip: {
+          backgroundColor: 'rgba(255,255,255,0.95)',
+          titleColor: '#9e7525',
+          bodyColor: '#594f43',
+          borderColor: 'rgba(189,149,68,0.3)',
+          borderWidth: 1,
+          callbacks: { label: c => ' ' + fmtNum(c.raw) + ' 字' }
+        }},
+        scales: {
+          x: { ticks: { color: '#a09888', font: { size: 10 } }, grid: { color: 'rgba(201,168,76,0.06)' } },
+          y: { ticks: { color: '#a09888', font: { size: 10 }, callback: v => (v/10000).toFixed(0)+'萬' }, grid: { color: 'rgba(201,168,76,0.06)' } }
+        }
+      }
+    });
+
+    const navEl = document.getElementById('year-chart-nav');
+    if (navEl) {
+      navEl.innerHTML = `
+        <button class="btn btn-ghost btn-sm" style="padding:0.1rem 0.4rem;" title="較舊的年份" onclick="App.changeYearChartPage(1)" ${state.yearChartPage >= totalPages - 1 ? 'disabled' : ''}>&lt;</button>
+        <button class="btn btn-ghost btn-sm" style="padding:0.1rem 0.4rem;" title="較新的年份" onclick="App.changeYearChartPage(-1)" ${state.yearChartPage <= 0 ? 'disabled' : ''}>&gt;</button>
+      `;
+    }
+
+    const yearListEl = document.getElementById('year-list');
+    if (yearListEl) {
+      const sortedYears = [...allYears].sort((a, b) => byYear[b] - byYear[a]).slice(0, 6);
+      yearListEl.innerHTML = sortedYears.map((y, idx) => `
+          <div class="year-list-item" onclick="App.gotoYearWorks('${y}')">
+              <div>
+                  <span class="year-list-rank">#${idx+1}</span>
+                  <span class="year-list-year">${y}</span>
+              </div>
+              <span class="year-list-wc">${fmtNum(byYear[y])} 字</span>
+          </div>
+      `).join('');
+    }
+  }
+
+  function renderPieChart() {
+    const bySeries = {};
+    statsWorks().forEach(w => {
+      bySeries[w.series] = (bySeries[w.series]||0) + (w.wordCount||0);
+    });
+    
+    const sortedSeries = Object.keys(bySeries).sort((a,b) => bySeries[b] - bySeries[a]);
+    const top5 = sortedSeries.slice(0, 5);
+    const others = sortedSeries.slice(5);
+
+    let labels = top5.map(seriesName);
+    let data = top5.map(k => bySeries[k]);
+    let colors = top5.map(seriesColor);
+
+    if (others.length > 0) {
+      const othersTotal = others.reduce((s, k) => s + bySeries[k], 0);
+      labels.push('其他'); data.push(othersTotal); colors.push('#cbd5e1');
+    }
+
+    const totalWC = data.reduce((a,b)=>a+b, 0);
+
+    const ctx = document.getElementById('chart-pie').getContext('2d');
+    if (state.charts.pie) state.charts.pie.destroy();
+
+    state.charts.pie = new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data, backgroundColor: colors.map(c=>c+'bb'), borderColor: colors, borderWidth: 1.5 }] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(255,255,255,0.95)',
+            titleColor: '#9e7525', bodyColor: '#594f43',
+            borderColor: 'rgba(189,149,68,0.3)', borderWidth: 1,
+            callbacks: { label: c => ' ' + fmtNum(c.raw) + ' 字 (' + (totalWC ? Math.round(c.raw/totalWC*100) : 0) + '%)' }
+          }
+        },
+        cutout: '55%',
+      }
+    });
+
+    const listEl = document.getElementById('series-list');
+    if (listEl) {
+      listEl.innerHTML = top5.map((k, idx) => {
+          const count = bySeries[k];
+          const pct = totalWC ? (count / totalWC * 100).toFixed(1) : 0;
+          return `
+              <div class="year-list-item" style="cursor:default; padding:0.4rem 0.2rem;">
+                  <div style="display:flex; align-items:center; gap:0.5rem;">
+                      <div style="width:8px; height:8px; border-radius:50%; background:${seriesColor(k)}"></div>
+                      <span class="year-list-year" style="font-size:0.9rem;">${seriesName(k)}</span>
+                  </div>
+                  <div style="text-align:right; line-height:1.2;">
+                      <div class="year-list-wc">${fmtNum(count)} 字</div>
+                      <div style="font-size:0.6rem; color:var(--mist);">${pct}%</div>
+                  </div>
+              </div>
+          `;
+      }).join('');
+      
+      if (others.length > 0) {
+        const othersTotal = others.reduce((s, k) => s + bySeries[k], 0);
+        listEl.innerHTML += `
+            <div class="year-list-item" style="cursor:default; padding:0.4rem 0.2rem;">
+                <div style="display:flex; align-items:center; gap:0.5rem;">
+                    <div style="width:8px; height:8px; border-radius:50%; background:#cbd5e1"></div>
+                    <span class="year-list-year" style="font-size:0.9rem; color:var(--mist);">其他</span>
+                </div>
+                <div style="text-align:right; line-height:1.2;">
+                    <div class="year-list-wc" style="color:var(--mist);">${fmtNum(othersTotal)} 字</div>
+                    <div style="font-size:0.6rem; color:var(--mist);">${totalWC ? (othersTotal / totalWC * 100).toFixed(1) : 0}%</div>
+                </div>
+            </div>
+        `;
+      }
+    }
+  }
+
+  function renderStatusChart() {
+    const counts = { '完成': 0, '已出版': 0, '已完成': 0, '進行中': 0, '規劃中': 0 };
+    statsWorks().forEach(w => { if (counts[w.status] !== undefined) counts[w.status]++; });
+    const sortedStatuses = Object.keys(counts).filter(k => counts[k]>0).sort((a,b) => counts[b] - counts[a]);
+    const labels = sortedStatuses;
+    const data = sortedStatuses.map(k => counts[k]);
+    const colorMap = { '完成': '#2a8a7a', '已出版': '#c0392b', '已完成': '#4a9e9e', '進行中': '#c9a84c', '規劃中': '#7a7a9a' };
+    const colors = labels.map(l => colorMap[l] || '#888');
+    const totalWorks = data.reduce((a,b)=>a+b, 0);
+
+    const ctx = document.getElementById('chart-status').getContext('2d');
+    if (state.charts.status) state.charts.status.destroy();
+
+    state.charts.status = new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data, backgroundColor: colors.map(c=>c+'bb'), borderColor: colors, borderWidth: 1.5 }] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(255,255,255,0.95)',
+            titleColor: '#9e7525', bodyColor: '#594f43',
+            borderColor: 'rgba(189,149,68,0.3)', borderWidth: 1,
+            callbacks: { label: c => ' ' + c.raw + ' 篇 (' + (totalWorks ? Math.round(c.raw/totalWorks*100) : 0) + '%)' }
+          }
+        },
+        cutout: '55%',
+      }
+    });
+
+    const listEl = document.getElementById('status-list');
+    if (listEl) {
+      listEl.innerHTML = sortedStatuses.map((k, idx) => {
+          const count = counts[k];
+          const pct = totalWorks ? (count / totalWorks * 100).toFixed(1) : 0;
+          const color = colorMap[k] || '#888';
+          return `
+              <div class="year-list-item" style="cursor:default; padding:0.4rem 0.2rem;">
+                  <div style="display:flex; align-items:center; gap:0.5rem;">
+                      <div style="width:8px; height:8px; border-radius:50%; background:${color}"></div>
+                      <span class="year-list-year" style="font-size:0.9rem;">${k}</span>
+                  </div>
+                  <div style="text-align:right; line-height:1.2;">
+                      <div class="year-list-wc">${count} 篇</div>
+                      <div style="font-size:0.6rem; color:var(--mist);">${pct}%</div>
+                  </div>
+              </div>
+          `;
+      }).join('');
+    }
+  }
+
+  function renderRecentWorks() {
+    const works = [...state.data.works]
+      .filter(w => state.showPlanned || w.status !== '規劃中')
+      .sort((a,b) => (b.date || '').localeCompare(a.date || ''))
+      .slice(0, 5);
+    const container = document.getElementById('recent-works-list');
+    if (!container) return;
+    
+    if (!works.length) { container.innerHTML = '<div style="color:var(--mist); font-size:0.8rem;">尚無作品</div>'; return; }
+
+    container.innerHTML = works.map(w => `
+        <div class="recent-card" onclick="App.showEditWork('${w.id}')">
+            <div class="recent-title">${w.title} <span class="recent-date">${w.date}</span></div>
+            <div class="recent-meta">
+                <span style="color:${seriesColor(w.series)};font-weight:bold;">${seriesName(w.series)}</span>
+                ${w.subSeries ? ' · ' + w.subSeries : ''}
+                ${w.wordCount ? ' · ' + fmtNum(w.wordCount) + ' 字' : ''}
+                · ${statusBadge(w.status)}
+            </div>
+        </div>
+    `).join('');
+  }
+
+  // ── Works ──
+  function getFilteredWorks() {
+    const { search, series, status, year } = state.worksFilter;
+    let works = [...state.data.works].filter(w => state.showPlanned || w.status !== '規劃中');
+    if (search) {
+      const q = search.toLowerCase();
+      works = works.filter(w => w.title.toLowerCase().includes(q) || seriesName(w.series).toLowerCase().includes(q) || (w.subSeries||'').toLowerCase().includes(q));
+    }
+    if (series) works = works.filter(w => w.series === series);
+    if (status) works = works.filter(w => w.status === status);
+    if (year) works = works.filter(w => getYear(w.date) === year);
+
+    // Sort
+    works.sort((a, b) => {
+      let av = a[state.worksSortCol] || '';
+      let bv = b[state.worksSortCol] || '';
+      if (state.worksSortCol === 'wordCount') { av = av||0; bv = bv||0; return state.worksSortDir === 'asc' ? av-bv : bv-av; }
+      if (av < bv) return state.worksSortDir === 'asc' ? -1 : 1;
+      if (av > bv) return state.worksSortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return works;
+  }
+
+  function renderWorks() {
+    // Populate filter dropdowns
+    const seriesSelect = document.getElementById('filter-series');
+    seriesSelect.innerHTML = '<option value="">全部系列</option>';
+    state.data.series.forEach(s => {
+      const o = document.createElement('option');
+      o.value = s.id; o.textContent = s.name;
+      if (state.worksFilter.series === s.id) o.selected = true;
+      seriesSelect.appendChild(o);
+    });
+
+    const yearSelect = document.getElementById('filter-year');
+    const years = [...new Set(state.data.works.map(w => getYear(w.date)).filter(y=>y!=='—'))].sort();
+    yearSelect.innerHTML = '<option value="">全部年份</option>';
+    years.forEach(y => {
+      const o = document.createElement('option');
+      o.value = y; o.textContent = y;
+      if (state.worksFilter.year === y) o.selected = true;
+      yearSelect.appendChild(o);
+    });
+
+    const filtered = getFilteredWorks();
+    const total = filtered.length;
+    const pageCount = Math.ceil(total / state.worksPageSize);
+    state.worksPage = Math.min(state.worksPage, Math.max(1, pageCount));
+    const start = (state.worksPage - 1) * state.worksPageSize;
+    const paged = filtered.slice(start, start + state.worksPageSize);
+
+    // Calculate total word count for each series for percentage display
+    const seriesWordCounts = {};
+    state.data.works.forEach(w => {
+      const sid = w.series || 'misc';
+      seriesWordCounts[sid] = (seriesWordCounts[sid] || 0) + (w.wordCount || 0);
+    });
+
+    const maxWC = Math.max(...state.data.works.map(w=>w.wordCount||0));
+
+    const tbody = document.getElementById('works-tbody');
+    tbody.innerHTML = paged.map(w => {
+      const sTotal = seriesWordCounts[w.series || 'misc'] || 0;
+      const sPct = sTotal > 0 && w.wordCount ? ((w.wordCount / sTotal) * 100).toFixed(1) : 0;
+      const pctHtml = sTotal > 0 && w.wordCount ? `<span style="font-size:0.65rem;color:var(--mist);opacity:0.8;margin-left:4px;">(${sPct}%)</span>` : '';
+      
+      return `<tr>
+        <td style="font-family:var(--mono);font-size:0.7rem;color:var(--mist);opacity:0.7;">${w.date||'—'}</td>
+        <td>${w.title}</td>
+        <td><span style="color:${seriesColor(w.series)};opacity:0.9;">${seriesName(w.series)}</span></td>
+        <td style="font-size:0.75rem;color:var(--mist);opacity:0.65;">${w.subSeries||'—'}</td>
+        <td>${statusBadge(w.status)}</td>
+        <td style="font-family:var(--mono);font-size:0.75rem;">
+          ${w.wordCount ? fmtNum(w.wordCount) : '—'}${pctHtml}
+          ${w.wordCount ? `<span class="inline-bar" style="width:${Math.round(w.wordCount/maxWC*60)}px"></span>` : ''}
+        </td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="App.showEditWork('${w.id}')">編輯</button>
+          <button class="btn btn-danger btn-sm" onclick="App.deleteWork('${w.id}')">刪除</button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    document.getElementById('no-results').style.display = paged.length ? 'none' : 'block';
+
+    // Update sort indicators
+    document.querySelectorAll('.data-table th[data-col]').forEach(th => {
+      th.classList.toggle('sorted', th.dataset.col === state.worksSortCol);
+      const ind = th.querySelector('.sort-indicator');
+      if (ind) ind.textContent = th.dataset.col === state.worksSortCol ? (state.worksSortDir==='asc'?'↑':'↓') : '↕';
+    });
+
+    // Pagination
+    const pg = document.getElementById('works-pagination');
+    pg.innerHTML = `
+      <span>共 ${total} 篇，顯示第 ${start+1}–${Math.min(start+state.worksPageSize,total)} 篇</span>
+      <div class="pagination-btns">
+        <button class="btn btn-ghost btn-sm" onclick="App.setPage(1)" ${state.worksPage===1?'disabled':''}>«</button>
+        <button class="btn btn-ghost btn-sm" onclick="App.setPage(${state.worksPage-1})" ${state.worksPage<=1?'disabled':''}>‹</button>
+        <span style="padding:0 0.5rem;">${state.worksPage} / ${pageCount||1}</span>
+        <button class="btn btn-ghost btn-sm" onclick="App.setPage(${state.worksPage+1})" ${state.worksPage>=pageCount?'disabled':''}>›</button>
+        <button class="btn btn-ghost btn-sm" onclick="App.setPage(${pageCount})" ${state.worksPage>=pageCount?'disabled':''}>»</button>
+      </div>
+    `;
+  }
+
+  function filterWorks() {
+    state.worksFilter.search = document.getElementById('works-search').value;
+    state.worksFilter.series = document.getElementById('filter-series').value;
+    state.worksFilter.status = document.getElementById('filter-status').value;
+    state.worksFilter.year = document.getElementById('filter-year').value;
+    state.worksPage = 1;
+    renderWorks();
+  }
+
+  function resetFilters() {
+    state.worksFilter = { search:'', series:'', status:'', year:'' };
+    document.getElementById('works-search').value = '';
+    document.getElementById('filter-series').value = '';
+    document.getElementById('filter-status').value = '';
+    document.getElementById('filter-year').value = '';
+    state.worksPage = 1;
+    renderWorks();
+  }
+
+  function exportWorksCSV() {
+    const works = getFilteredWorks();
+    if (!works.length) { toast('沒有可匯出的資料'); return; }
+
+    let csv = '\uFEFF'; // BOM 讓 Excel 支援 UTF-8
+    csv += '日期,篇名,系列,子系列,狀態,字數\n';
+
+    works.forEach(w => {
+      csv += `${w.date||''},"${(w.title||'').replace(/"/g, '""')}","${(seriesName(w.series)||'').replace(/"/g, '""')}","${(w.subSeries||'').replace(/"/g, '""')}",${w.status||''},${w.wordCount||0}\n`;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `works_list_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('CSV 已下載');
+  }
+
+  function sortBy(col) {
+    if (state.worksSortCol === col) state.worksSortDir = state.worksSortDir==='asc'?'desc':'asc';
+    else { state.worksSortCol = col; state.worksSortDir = 'asc'; }
+    renderWorks();
+  }
+
+  function setPage(p) { state.worksPage = p; renderWorks(); }
+
+  // ── Series page ──
+  function renderSeriesPage() {
+    const bySeries = {};
+    state.data.works.forEach(w => {
+      if (!bySeries[w.series]) bySeries[w.series] = { total: 0, count: 0, done: 0 };
+      bySeries[w.series].total += (w.wordCount||0);
+      bySeries[w.series].count++;
+      if (['完成','已出版','已完成'].includes(w.status)) bySeries[w.series].done++;
+    });
+    const maxTotal = Math.max(...Object.values(bySeries).map(v=>v.total));
+
+    document.getElementById('series-grid').innerHTML = state.data.series.map(s => {
+      const info = bySeries[s.id] || { total:0, count:0, done:0 };
+      return `
+        <div class="series-card" onclick="App.gotoSeriesWorks('${s.id}')">
+          <div class="series-card-title">${s.name}</div>
+          <div class="series-card-count">${info.count} 篇 · ${info.done} 完成</div>
+          <div class="series-card-bar"><div class="series-card-bar-fill" style="width:${Math.round(info.total/maxTotal*100)}%;background:linear-gradient(90deg,${s.color}66,${s.color});"></div></div>
+          <div class="series-card-words">${(info.total/10000).toFixed(1)} 萬字</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function gotoSeriesWorks(seriesId) {
+    state.worksFilter.series = seriesId;
+    state.worksPage = 1;
+    document.querySelector('[data-page="works"]').click();
+  }
+
+  function gotoYearWorks(year) {
+    state.worksFilter.year = year;
+    state.worksPage = 1;
+    document.querySelector('[data-page="works"]').click();
+  }
+
+  // ── Timeline ──
+  function renderTimelineYearMode(works, container) {
+    const byYear = works.reduce((acc, w) => {
+        const year = getYear(w.date);
+        if (year === '—') return acc;
+        if (!acc[year]) acc[year] = [];
+        acc[year].push(w);
+        return acc;
+    }, {});
+
+    const years = Object.keys(byYear).sort((a, b) => state.tlOrder === 'asc' ? a.localeCompare(b) : b.localeCompare(a));
+
+    if (!years.length) {
+        container.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--mist);opacity:0.4;font-style:italic;">— 沒有符合的作品 —</div>';
+        return;
+    }
+
+    container.innerHTML = years.map(year => {
+        const yearWorks = byYear[year];
+        const yearWordCount = yearWorks.reduce((sum, w) => sum + (w.wordCount || 0), 0);
+
+        const bySeries = yearWorks.reduce((acc, w) => {
+            const seriesId = w.series || 'misc';
+            if (!acc[seriesId]) acc[seriesId] = { info: seriesById(seriesId) || { name: '未分類', color: '#777' }, works: [] };
+            acc[seriesId].works.push(w);
+            return acc;
+        }, {});
+
+        return `
+            <div class="tl-year-block">
+                <div class="tl-year-heading">
+                    <div class="tl-year-num">${year}</div>
+                    <div class="tl-year-total">${yearWorks.length} 篇作品 · 總計 ${fmtNum(yearWordCount)} 字</div>
+                </div>
+                ${Object.values(bySeries).map(({ info, works }) => `
+                    <div class="tl-series-group">
+                        <div class="tl-series-group-label" style="color:${info.color}">${info.name}</div>
+                        <div class="tl-year-chips">
+                            ${works.map(w => `
+                                <div class="tl-chip" style="border-color:${info.color}66; color:${info.color};">
+                                    <div class="tl-chip-dot" style="background:${info.color}"></div>
+                                    <div class="tl-chip-title">${w.title}</div>
+                                    <div class="tl-chip-wc">${w.wordCount ? fmtNum(w.wordCount) : ''}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }).join('');
+  }
+
+  function renderTimelineDetailMode(works, container) {
+    works.sort((a,b) => {
+        const dateA = a.date || '';
+        const dateB = b.date || '';
+        return state.tlOrder === 'asc' ? dateA.localeCompare(dateB) : dateB.localeCompare(dateA);
+    });
+
+    if (!works.length) { container.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--mist);opacity:0.4;font-style:italic;">— 沒有符合的作品 —</div>'; return; }
+
+    container.innerHTML = `<div class="timeline-wrap">${works.map(w => `
+      <div class="timeline-item">
+        <div class="timeline-date">${w.date}</div>
+        <div class="timeline-title">${w.title} ${seriesById(w.series)?.excludeFromStats ? '<span class="excl-badge">不統計</span>' : ''}</div>
+        <div class="timeline-meta">
+          <span style="color:${seriesColor(w.series)}">${seriesName(w.series)}</span>
+          ${w.subSeries ? ' · ' + w.subSeries : ''}
+          · ${statusBadge(w.status)}
+          ${w.wordCount ? ' · ' + fmtNum(w.wordCount) + ' 字' : ''}
+        </div>
+      </div>
+    `).join('')}</div>`;
+  }
+
+  function renderTimeline() {
+    const tlSeriesEl = document.getElementById('tl-filter-series');
+    const tlStatusEl = document.getElementById('tl-filter-status');
+    const fSeries = tlSeriesEl.value;
+    const fStatus = tlStatusEl.value;
+    let works = [...state.data.works]
+      .filter(w => w.date && w.date !== '—')
+      .filter(w => !fSeries || w.series === fSeries)
+      .filter(w => !fStatus || w.status === fStatus)
+      .filter(w => state.showPlanned || w.status !== '規劃中');
+    document.getElementById('tl-count').textContent = works.length + ' 筆';
+    const container = document.getElementById('timeline-container');
+    if (state.tlMode === 'year') renderTimelineYearMode(works, container);
+    else renderTimelineDetailMode(works, container);
+  }
+
+  // ── Editor ──
+  function renderEditor() {
+    const panel = document.getElementById('series-list-panel');
+    panel.innerHTML = state.data.series.map(s => `
+      <div class="series-list-item ${state.selectedSeriesId===s.id?'active':''}" onclick="App.selectSeries('${s.id}')">
+        <span>
+          <span style="display:inline-block;width:8px;height:8px;background:${s.color};margin-right:0.5rem;border-radius:50%;"></span>
+          ${s.name}
+          ${s.excludeFromStats ? '<span class="excl-badge" style="margin-left:0.5rem;vertical-align:baseline;">不統計</span>' : ''}
+        </span>
+        <span class="count">${state.data.works.filter(w=>w.series===s.id).length}</span>
+      </div>
+    `).join('');
+
+    updateJsonPreview();
+
+    if (state.selectedSeriesId) renderSeriesEditor(state.selectedSeriesId);
+  }
+
+  function selectSeries(id) {
+    state.selectedSeriesId = id;
+    renderEditor();
+  }
+
+  function renderSeriesEditor(seriesId) {
+    const s = seriesById(seriesId);
+    if (!s) return;
+    const works = state.data.works.filter(w => w.series === seriesId);
+    const mainPanel = document.getElementById('editor-main-panel');
+
+    mainPanel.innerHTML = `
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">系列名稱</label>
+          <input class="form-input" id="edit-series-name" value="${s.name}" oninput="App.updateSeriesField('${s.id}', 'name', this.value)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">代表色</label>
+          <input type="color" value="${s.color}" style="width:48px;height:36px;border:1px solid rgba(201,168,76,0.3);background:transparent;cursor:pointer;padding:2px;" oninput="App.updateSeriesField('${s.id}', 'color', this.value)">
+        </div>
+      </div>
+      <div class="form-row full" style="margin-bottom:0.5rem;">
+        <div class="form-group">
+          <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; font-size:0.75rem; color: var(--mist);">
+            <input type="checkbox" ${s.excludeFromStats ? 'checked' : ''} onchange="App.updateSeriesField('${s.id}', 'excludeFromStats', this.checked)">
+            不列入全站統計 (總字數、圖表等) ${s.excludeFromStats ? '<span class="excl-badge">目前已排除</span>' : ''}
+          </label>
+        </div>
+      </div>
+      <div style="display:flex; justify-content:flex-end; margin-bottom:1.5rem;">
+        <button class="btn btn-danger btn-sm" onclick="App.deleteSeries('${s.id}')">刪除此系列</button>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+        <div class="form-label" style="opacity:1;color:var(--gold-light);">旗下作品 (${works.length})</div>
+        <button class="btn btn-gold btn-sm" onclick="App.addWorkToSeries('${seriesId}')">＋ 新增作品</button>
+      </div>
+      <div class="works-mini-list" id="works-mini-list">
+        ${works.map(w => renderWorkMiniRow(w)).join('')}
+      </div>
+    `;
+  }
+
+  function renderWorkMiniRow(w) {
+    return `
+      <div class="works-mini-item" id="wrow-${w.id}">
+        <input value="${w.title}" onchange="App.updateWorkField('${w.id}','title',this.value)" placeholder="篇名">
+        <input value="${w.date||''}" onchange="App.updateWorkField('${w.id}','date',this.value)" placeholder="YYYY-MM-DD" style="width:110px;">
+        <select onchange="App.updateWorkField('${w.id}','status',this.value)">
+          ${['完成','已出版','已完成','進行中','規劃中'].map(s=>`<option ${w.status===s?'selected':''}>${s}</option>`).join('')}
+        </select>
+        <input type="number" value="${w.wordCount||0}" onchange="App.updateWorkField('${w.id}','wordCount',+this.value)" placeholder="字數" style="width:80px;">
+        <button class="btn btn-danger btn-sm" onclick="App.deleteWork('${w.id}')">✕</button>
+      </div>
+    `;
+  }
+
+  function updateSeriesField(id, field, value) {
+    const s = seriesById(id);
+    if (s) {
+      s[field] = value;
+      saveData();
+      if (field === 'name' || field === 'excludeFromStats') renderEditor();
+      if (field === 'excludeFromStats' && state.currentPage === 'dashboard') renderDashboard();
+      if (field === 'color') renderSeriesEditor(id);
+      toast('系列已更新');
+    }
+  }
+
+  function updateWorkField(id, field, val) {
+    const w = state.data.works.find(w=>w.id===id);
+    if (w) { w[field] = val; saveData(); toast('已儲存'); }
+  }
+
+  function deleteSeries(id) {
+    if (!confirm('確定刪除此系列？旗下作品將保留，但系列欄位會變為空值。')) return;
+    state.data.series = state.data.series.filter(s=>s.id!==id);
+    state.selectedSeriesId = null;
+    saveData(); renderEditor(); toast('系列已刪除');
+  }
+
+  function deleteWork(id) {
+    if (!confirm('確定刪除此作品？')) return;
+    state.data.works = state.data.works.filter(w=>w.id!==id);
+    saveData();
+    toast('作品已刪除');
+    renderPage(state.currentPage);
+  }
+
+  function addWorkToSeries(seriesId) {
+    const w = { id: uid(), date: new Date().toISOString().slice(0,10), title: '新作品', series: seriesId, subSeries: '', status: '進行中', wordCount: 0 };
+    state.data.works.push(w);
+    saveData();
+    renderSeriesEditor(seriesId);
+    toast('已新增作品，請填寫資訊');
+  }
+
+  function showAddSeries() {
+    const html = `
+      <h2>新增系列</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">系列名稱</label>
+          <input class="form-input" id="new-series-name" placeholder="如：新的傳說">
+        </div>
+        <div class="form-group">
+          <label class="form-label">代表色</label>
+          <input type="color" id="new-series-color" value="#c9a84c" style="width:48px;height:36px;border:1px solid rgba(201,168,76,0.3);background:transparent;cursor:pointer;padding:2px;">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="App.closeModal()">取消</button>
+        <button class="btn btn-gold" onclick="App.confirmAddSeries()">新增</button>
+      </div>
+    `;
+    showModal(html);
+  }
+
+  function confirmAddSeries() {
+    const name = document.getElementById('new-series-name').value.trim();
+    if (!name) { toast('請輸入系列名稱', true); return; }
+    const color = document.getElementById('new-series-color').value;
+    const id = 'series_' + Date.now().toString(36);
+    state.data.series.push({ id, name, color });
+    saveData(); closeModal(); renderEditor(); toast('系列已新增');
+  }
+
+  function showAddWork() {
+    const seriesOpts = state.data.series.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+    const statusOpts = ['完成','已出版','已完成','進行中','規劃中'].map(s=>`<option>${s}</option>`).join('');
+    const html = `
+      <h2>新增作品</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">篇名</label>
+          <input class="form-input" id="nw-title" placeholder="作品標題">
+        </div>
+        <div class="form-group">
+          <label class="form-label">日期</label>
+          <input class="form-input" id="nw-date" type="date" value="${new Date().toISOString().slice(0,10)}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">系列</label>
+          <select class="form-select" id="nw-series">${seriesOpts}</select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">子系列</label>
+          <input class="form-input" id="nw-subseries" placeholder="選填">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">狀態</label>
+          <select class="form-select" id="nw-status">${statusOpts}</select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">字數</label>
+          <input class="form-input" id="nw-wc" type="number" placeholder="0">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="App.closeModal()">取消</button>
+        <button class="btn btn-gold" onclick="App.confirmAddWork()">新增</button>
+      </div>
+    `;
+    showModal(html);
+  }
+
+  function confirmAddWork() {
+    const title = document.getElementById('nw-title').value.trim();
+    if (!title) { toast('請輸入篇名', true); return; }
+    const w = {
+      id: uid(),
+      date: document.getElementById('nw-date').value,
+      title,
+      series: document.getElementById('nw-series').value,
+      subSeries: document.getElementById('nw-subseries').value,
+      status: document.getElementById('nw-status').value,
+      wordCount: +(document.getElementById('nw-wc').value||0),
+    };
+    state.data.works.push(w);
+    saveData(); closeModal(); renderPage(state.currentPage); toast('作品已新增');
+  }
+
+  function showEditWork(id) {
+    const w = state.data.works.find(x=>x.id===id);
+    if (!w) return;
+    const seriesOpts = state.data.series.map(s=>`<option value="${s.id}" ${w.series===s.id?'selected':''}>${s.name}</option>`).join('');
+    const statusOpts = ['完成','已出版','已完成','進行中','規劃中'].map(s=>`<option ${w.status===s?'selected':''}>${s}</option>`).join('');
+    const html = `
+      <h2>編輯作品</h2>
+      <div class="form-row">
+        <div class="form-group form-row full">
+          <label class="form-label">篇名</label>
+          <input class="form-input" id="ew-title" value="${w.title}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">日期</label>
+          <input class="form-input" id="ew-date" value="${w.date||''}">
+        </div>
+        <div class="form-group">
+          <label class="form-label">字數</label>
+          <input class="form-input" id="ew-wc" type="number" value="${w.wordCount||0}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">系列</label>
+          <select class="form-select" id="ew-series">${seriesOpts}</select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">子系列</label>
+          <input class="form-input" id="ew-subseries" value="${w.subSeries||''}">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">狀態</label>
+          <select class="form-select" id="ew-status">${statusOpts}</select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="App.closeModal()">取消</button>
+        <button class="btn btn-gold" onclick="App.confirmEditWork('${id}')">儲存</button>
+      </div>
+    `;
+    showModal(html);
+  }
+
+  function confirmEditWork(id) {
+    const w = state.data.works.find(x=>x.id===id);
+    if (!w) return;
+    w.title = document.getElementById('ew-title').value.trim();
+    w.date = document.getElementById('ew-date').value;
+    w.wordCount = +(document.getElementById('ew-wc').value||0);
+    w.series = document.getElementById('ew-series').value;
+    w.subSeries = document.getElementById('ew-subseries').value;
+    w.status = document.getElementById('ew-status').value;
+    saveData(); closeModal(); renderPage(state.currentPage); toast('作品已更新');
+  }
+
+  // ── Import / Export ──
+  function exportJSON() {
+    const json = JSON.stringify(state.data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'writing_archive_' + new Date().toISOString().slice(0,10) + '.json';
+    a.click();
+    updateJsonPreview();
+    toast('JSON 已下載');
+  }
+
+  function updateJsonPreview() {
+    const el = document.getElementById('json-preview');
+    if (!el) return;
+    const json = JSON.stringify(state.data, null, 2);
+    el.textContent = json.slice(0, 2000) + (json.length > 2000 ? '\n\n… (截略顯示)' : '');
+  }
+
+  function showImport() {
+    document.querySelector('[data-page="backup"]').click();
+    setTimeout(() => {
+      document.getElementById('file-input').click();
+    }, 300);
+  }
+
+  function handleFileImport(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (!data.works || !data.series) throw new Error('格式不正確');
+        state.data = data;
+        saveData();
+        renderPage(state.currentPage);
+        renderDashboard();
+        toast('匯入成功！共 ' + data.works.length + ' 篇作品');
+      } catch(err) {
+        toast('匯入失敗：' + err.message, true);
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  }
+
+  function exportExcel() {
+    if (typeof XLSX === 'undefined') {
+      toast('請等待 Excel 套件載入', true);
+      return;
+    }
+    const rows = [['篇名', '系列', '子系列', '日期', '狀態', '字數', '不列入統計']];
+    state.data.works.forEach(w => {
+      const s = seriesById(w.series) || {};
+      rows.push([
+        w.title,
+        s.name || '未分類',
+        w.subSeries || '',
+        w.date || '',
+        w.status || '',
+        w.wordCount || 0,
+        s.excludeFromStats ? '是' : '否'
+      ]);
+    });
+    const wb = XLSX.utils.book_new();
+    const wsWorks = XLSX.utils.aoa_to_sheet(rows);
+    wsWorks['!cols'] = [{wch:30}, {wch:20}, {wch:15}, {wch:15}, {wch:10}, {wch:10}, {wch:12}];
+    XLSX.utils.book_append_sheet(wb, wsWorks, "作品清單");
+
+    const seriesRows = [['系列名稱', '作品數', '總字數', '是否列入統計']];
+    state.data.series.forEach(s => {
+      const sWorks = state.data.works.filter(w => w.series === s.id);
+      const count = sWorks.length;
+      const wc = sWorks.reduce((acc, w) => acc + (w.wordCount || 0), 0);
+      seriesRows.push([s.name, count, wc, s.excludeFromStats ? '不統計' : '統計']);
+    });
+    const wsSeries = XLSX.utils.aoa_to_sheet(seriesRows);
+    wsSeries['!cols'] = [{wch:25}, {wch:10}, {wch:15}, {wch:15}];
+    XLSX.utils.book_append_sheet(wb, wsSeries, "系列統計");
+
+    XLSX.writeFile(wb, 'writing_archive_' + new Date().toISOString().slice(0,10) + '.xlsx');
+    toast('Excel 已下載');
+  }
+
+  function clearAllData() {
+    if (!confirm('警告：確定要清除系統內所有的作品與系列設定嗎？\n\n此操作無法復原，強烈建議您先執行「匯出 JSON」備份資料！')) return;
+    if (!confirm('【最終確認】真的要清空所有資料嗎？')) return;
+
+    state.data = {
+        meta: { title: "琉．修龍 作品管理", version: "1.0" },
+        series: [],
+        works: []
+    };
+    saveData();
+    state.selectedSeriesId = null;
+    renderPage(state.currentPage);
+    toast('系統資料已完全清空');
+  }
+
+  // ── Modal ──
+  function showModal(html) {
+    document.getElementById('modal-content').innerHTML = html;
+    document.getElementById('modal-overlay').classList.add('open');
+  }
+  function closeModal() {
+    document.getElementById('modal-overlay').classList.remove('open');
+  }
+
+  // 👇 請在此處補上這個缺少的函式 👇
+  function changeYearChartPage(dir) {
+    if (state.yearChartPage !== null) {
+      state.yearChartPage += dir;
+    }
+    renderYearChart();
+  }
+  
+  // ── Drag & drop ──
+  function initDropZone() {
+    const dz = document.getElementById('drop-zone');
+    if (!dz) return;
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+    dz.addEventListener('drop', e => {
+      e.preventDefault(); dz.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (!file) return;
+      const fakeEvent = { target: { files: [file], value: '' } };
+      handleFileImport(fakeEvent);
+    });
+  }
+
+  // ── Init ──
+  function init() {
+    loadData();
+    initNav();
+    renderDashboard();
+
+    // Populate timeline series filter immediately
+    const tlSeries = document.getElementById('tl-filter-series');
+    state.data.series.forEach(s => {
+      const o = document.createElement('option');
+      o.value = s.id; o.textContent = s.name;
+      tlSeries.appendChild(o);
+    });
+
+    // Drop zone init after slight delay for DOM
+    setTimeout(initDropZone, 100);
+
+    // Update JSON preview when on backup tab
+    document.querySelector('[data-page="backup"]').addEventListener('click', () => {
+      setTimeout(updateJsonPreview, 100);
+    });
+  }
+
+  return {
+    init,
+    filterWorks, resetFilters, exportWorksCSV, sortBy, setPage,
+    renderTimeline, setTlMode, toggleTlOrder, togglePlanned,
+    renderEditor, selectSeries, updateSeriesField,
+    updateWorkField, deleteSeries, deleteWork, addWorkToSeries,
+    showAddSeries, confirmAddSeries,
+    showAddWork, confirmAddWork,
+    showEditWork, confirmEditWork,
+    exportJSON, exportExcel, showImport, handleFileImport,
+    clearAllData,
+    gotoSeriesWorks,
+    gotoYearWorks,
+    closeModal,
+    changeYearChartPage, // ⬅️ 確保剛剛新增的函式有被成功匯出
+  };
+})();
+
+document.addEventListener('DOMContentLoaded', App.init);
+</script>
+</body>
+</html>

@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Penana 作品數據擷取工具</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root {
+  --bg:#0f0f13;--bg2:#17171e;--bg3:#1e1e28;--bg4:#252533;
+  --bd:rgba(255,255,255,.07);--bd2:rgba(255,255,255,.13);
+  --tx:#e2dff0;--tx2:#8f8aaa;--tx3:#534f6a;
+  --ac:#a78bfa;--ac-d:rgba(167,139,250,.12);--ac-b:rgba(167,139,250,.28);
+  --tl:#2dd4bf;--tl-d:rgba(45,212,191,.12);
+  --am:#fbbf24;--am-d:rgba(251,191,36,.12);
+  --pk:#f472b6;--pk-d:rgba(244,114,182,.12);
+  --gn:#4ade80;--gn-d:rgba(74,222,128,.1);
+  --rd:#f87171;--rd-d:rgba(248,113,113,.1);
+  --r:10px;--rs:6px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI','PingFang TC','Noto Sans TC',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;font-size:14px;line-height:1.6}
+.app{max-width:980px;margin:0 auto;padding:32px 20px 80px}
+.hdr{margin-bottom:26px}
+.hdr h1{font-size:20px;font-weight:600;letter-spacing:-.3px}
+.hdr h1 em{color:var(--ac);font-style:normal}
+.hdr p{color:var(--tx3);font-size:12px;margin-top:5px}
+.card{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:18px 20px;margin-bottom:14px}
+.card-ttl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--tx3);margin-bottom:12px}
+input[type=text],input[type=url]{background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rs);color:var(--tx);font-size:13px;padding:7px 11px;outline:none;transition:border-color .15s;font-family:inherit}
+input:focus{border-color:var(--ac)}
+input::placeholder{color:var(--tx3)}
+textarea{background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rs);color:var(--tx2);font-size:12px;padding:10px 12px;outline:none;width:100%;font-family:monospace;resize:vertical;transition:border-color .15s}
+textarea:focus{border-color:var(--ac)}
+.btn{border:none;cursor:pointer;font-family:inherit;border-radius:var(--rs);font-size:13px;font-weight:500;padding:8px 15px;transition:all .15s;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.btn:disabled{opacity:.38;cursor:not-allowed}
+.btn-ac{background:var(--ac);color:#0a0820}
+.btn-ac:hover:not(:disabled){background:#bfa7fc}
+.btn-gh{background:var(--bg3);color:var(--tx2);border:1px solid var(--bd)}
+.btn-gh:hover:not(:disabled){border-color:var(--bd2);color:var(--tx)}
+.btn-tl{background:var(--tl-d);color:var(--tl);border:1px solid rgba(45,212,191,.22)}
+.btn-tl:hover:not(:disabled){background:rgba(45,212,191,.2)}
+.btn-sm{padding:5px 10px;font-size:11px}
+.sitem{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg3);border:1px solid var(--bd);border-radius:var(--rs);margin-bottom:6px}
+.sitem-num{font-size:11px;color:var(--tx3);min-width:22px;text-align:right;flex-shrink:0}
+.sitem-ins{display:flex;gap:8px;flex:1;align-items:center;flex-wrap:wrap}
+.sitem-ins .id-inp{flex:0 0 110px}
+.sitem-ins .ti-inp{flex:1;min-width:130px}
+.sitem-del{background:none;border:none;cursor:pointer;color:var(--tx3);font-size:17px;line-height:1;padding:0 3px;transition:color .1s;flex-shrink:0}
+.sitem-del:hover{color:var(--rd)}
+.status{padding:9px 13px;border-radius:var(--rs);font-size:12px;display:flex;align-items:center;gap:8px;margin-bottom:12px;border:1px solid}
+.st-info{background:var(--ac-d);border-color:var(--ac-b);color:#c4b5fd}
+.st-ok{background:var(--gn-d);border-color:rgba(74,222,128,.22);color:var(--gn)}
+.st-err{background:var(--rd-d);border-color:rgba(248,113,113,.22);color:var(--rd)}
+.st-warn{background:var(--am-d);border-color:rgba(251,191,36,.22);color:var(--am)}
+.prog-wrap{margin-bottom:12px}
+.prog-lbl{font-size:11px;color:var(--tx3);display:flex;justify-content:space-between;margin-bottom:5px}
+.prog-track{height:3px;background:var(--bg4);border-radius:2px;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,var(--ac),var(--tl));border-radius:2px;transition:width .3s}
+.sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:16px}
+.sb{background:var(--bg2);border:1px solid var(--bd);border-radius:var(--r);padding:13px 15px}
+.sb .l{font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:5px}
+.sb .v{font-size:21px;font-weight:600}
+.c-ac{color:var(--ac)}.c-tl{color:var(--tl)}.c-gn{color:var(--gn)}.c-am{color:var(--am)}.c-pk{color:var(--pk)}
+.rblock{border:1px solid var(--bd);border-radius:var(--r);margin-bottom:8px;overflow:hidden}
+.rhead{display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;user-select:none;background:var(--bg2);transition:background .1s}
+.rhead:hover{background:var(--bg3)}
+.rhl{flex:1;min-width:0}
+.rhtitle{font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rhmeta{font-size:11px;color:var(--tx3);margin-top:3px;display:flex;gap:14px;flex-wrap:wrap}
+.rhr{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.arrow{font-size:11px;color:var(--tx3);transition:transform .18s}
+.arrow.open{transform:rotate(90deg)}
+.rbody{display:none;background:var(--bg);border-top:1px solid var(--bd)}
+.rbody.open{display:block}
+.twrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+thead th{background:var(--bg3);color:var(--tx3);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:8px 14px;text-align:left;border-bottom:1px solid var(--bd);white-space:nowrap}
+tbody td{padding:7px 14px;border-bottom:1px solid var(--bd);font-size:13px}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--bg2)}
+.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:500}
+.bb{background:rgba(96,165,250,.14);color:#93c5fd}
+.bg{background:rgba(74,222,128,.11);color:#86efac}
+.tbar{display:flex;gap:7px;padding:10px 14px;background:var(--bg3);border-top:1px solid var(--bd);flex-wrap:wrap}
+.dbg{background:var(--bg);border:1px solid var(--bd);border-radius:var(--rs);padding:12px;margin-top:10px;font-family:monospace;font-size:11px;color:var(--tx3);white-space:pre-wrap;max-height:320px;overflow-y:auto;display:none}
+.dbg.open{display:block}
+.spin{width:12px;height:12px;border:2px solid rgba(167,139,250,.25);border-top-color:var(--ac);border-radius:50%;animation:sp .7s linear infinite;display:inline-block;flex-shrink:0}
+@keyframes sp{to{transform:rotate(360deg)}}
+#toast{position:fixed;bottom:22px;right:22px;background:var(--bg3);border:1px solid var(--bd2);color:var(--tx);padding:9px 15px;border-radius:var(--r);font-size:13px;opacity:0;transform:translateY(6px);transition:all .2s;pointer-events:none;z-index:999}
+#toast.show{opacity:1;transform:translateY(0)}
+hr{border:none;border-top:1px solid var(--bd);margin:14px 0}
+a{color:var(--ac);text-decoration:none}
+a:hover{text-decoration:underline}
+details>summary{cursor:pointer;font-size:12px;color:var(--tx3);list-style:none;user-select:none}
+details>summary:hover{color:var(--tx2)}
+details[open]>summary{margin-bottom:10px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.empty{text-align:center;padding:36px;color:var(--tx3);font-size:13px}
+code{background:var(--bg4);padding:1px 5px;border-radius:3px;font-size:12px}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:3px}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+<div class="app">
+
+<div class="hdr">
+  <h1>Penana <em>作品數據擷取</em></h1>
+  <p>依作品清單擷取各章節閱覽數與留言數，匯出 Excel（每部作品一個 sheet）</p>
+</div>
+
+<div class="card">
+  <details>
+    <summary id="slist-summary" style="font-size:13px;font-weight:500;color:var(--tx2)">▸ 作品清單</summary>
+    <div style="margin-top:12px">
+      <div id="slist"></div>
+      <div class="row" style="margin-top:10px">
+        <input type="url" id="add-url" placeholder="作品網址 或 ID" style="width:280px">
+        <input type="text" id="add-ti" placeholder="作品名稱（選填）" style="width:200px">
+        <button class="btn btn-gh" onclick="addStory()">＋ 新增</button>
+        <button class="btn btn-gh btn-sm" onclick="resetDefault()" style="margin-left:auto">↺ 還原預設</button>
+      </div>
+    </div>
+  </details>
+</div>
+
+<div class="card">
+  <div class="card-ttl">操作</div>
+  <div class="row">
+    <button class="btn btn-ac" id="btn-fetch" onclick="startFetch()">▶ 開始擷取</button>
+    <button class="btn btn-tl" id="btn-exp" onclick="exportExcel()" disabled>↓ 匯出 Excel</button>
+    <button class="btn btn-gh" onclick="copyAllTSV()">⎘ 複製全部 TSV</button>
+  </div>
+</div>
+
+<div id="sta"></div>
+<div id="prg" style="display:none">
+  <div class="prog-wrap">
+    <div class="prog-lbl"><span id="ptxt">準備...</span><span id="ppct">0%</span></div>
+    <div class="prog-track"><div class="prog-fill" id="pfill" style="width:0%"></div></div>
+  </div>
+</div>
+<div id="stats"></div>
+<div id="res"><div class="empty">尚無資料，請按「開始擷取」</div></div>
+
+<div class="card" style="margin-top:20px">
+  <details>
+    <summary>▸ 手動貼上 HTML（自動擷取失敗時）</summary>
+    <div style="margin-top:10px">
+      <p style="font-size:12px;color:var(--tx3);margin-bottom:10px;line-height:1.8">
+        在瀏覽器開啟作品頁，等完全載入後按 <code>F12</code> → Console，執行：<br>
+        <code style="color:var(--tl)">copy(document.documentElement.outerHTML)</code><br>
+        貼到下方，填入作品 ID 後按「解析」。
+      </p>
+      <div class="row" style="margin-bottom:8px">
+        <input type="text" id="m-id" placeholder="作品 ID（如：57914）" style="width:180px">
+        <input type="text" id="m-ti" placeholder="作品名稱（選填）" style="width:200px">
+        <button class="btn btn-gh" onclick="parseManual()">⚙ 解析</button>
+      </div>
+      <textarea id="m-html" rows="4" placeholder="在此貼上頁面 HTML..."></textarea>
+    </div>
+  </details>
+  <hr>
+  <details>
+    <summary>▸ Debug 模式（查看擷取內容，協助回報解析問題）</summary>
+    <div style="margin-top:10px">
+      <div class="row" style="margin-bottom:8px">
+        <input type="url" id="dbg-url" placeholder="作品 URL（空白＝第一筆）" style="width:340px">
+        <button class="btn btn-gh btn-sm" onclick="debugFetch()">🔍 擷取 &amp; 分析</button>
+      </div>
+      <div id="dbg-out" class="dbg"></div>
+    </div>
+  </details>
+</div>
+
+</div>
+<script>
+// ══════════════════════════════════════════════════════════════════
+//  ★  作品清單設定  ★
+//  新增：在 DEFAULT_STORIES 陣列加入 { id:'作品ID', title:'名稱（可空）' }
+// ══════════════════════════════════════════════════════════════════
+const DEFAULT_STORIES = [
+  { id:'57914',  title:'藍月傳說(本篇)' },
+  { id:'58146',  title:'罪詠' },
+  { id:'58457', title: '初雪消融之夏' },
+  { id:'93712',  title:'藍月後傳' },
+  { id:'102449', title:'遺失的精靈' },
+  { id:'177288', title:'女武神的黑玫瑰' },
+  { id:'185409', title:'費南伊連的新娘' },
+  { id:'212394', title:'籠中鳥' },
+  { id:'214473', title:'雪櫻' },
+];
+// ══════════════════════════════════════════════════════════════════
+const CF_WORKER_URL = "https://green-bush-9fc8.tw-hsiulung.workers.dev/";
+
+const PROXIES = [
+// 優先使用您的專屬 Cloudflare 代理
+  u => `${CF_WORKER_URL}?url=${encodeURIComponent(u)}`,
+  
+  // 備援：相對較穩定的公共代理
+  u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+  u => `https://weecors.vercel.app/api?url=${encodeURIComponent(u)}`
+];
+
+let stories = DEFAULT_STORIES.map(s=>({...s}));
+let results = {};
+let fetching = false;
+
+renderList();
+
+// ── Story list UI ─────────────────────────────────────────────────
+function renderList(){
+  const el=document.getElementById('slist');
+  const sumEl=document.getElementById('slist-summary');
+  
+  if(stories.length){
+    const titles=stories.map(s=>s.title||`#${s.id}`).join('、');
+    sumEl.textContent=`▸ 作品清單：${titles}`;
+  }else{
+    sumEl.textContent='▸ 作品清單（空）';
+  }
+
+  if(!stories.length){el.innerHTML='<div style="font-size:12px;color:var(--tx3)">清單為空</div>';return;}
+  el.innerHTML=stories.map((s,i)=>`
+    <div class="sitem">
+      <span class="sitem-num">${i+1}</span>
+      <div class="sitem-ins">
+        <input class="id-inp" type="text" value="${esc(s.id)}" placeholder="作品ID"
+          oninput="stories[${i}].id=this.value.trim()">
+        <input class="ti-inp" type="text" value="${esc(s.title)}" placeholder="名稱（空＝自動偵測）"
+          oninput="stories[${i}].title=this.value.trim()">
+        <a href="https://www.penana.com/story/${s.id}/" target="_blank"
+           style="font-size:11px;color:var(--tx3)">↗</a>
+      </div>
+      <button class="sitem-del" onclick="rmStory(${i})">×</button>
+    </div>`).join('');
+}
+
+function addStory(){
+  const raw=document.getElementById('add-url').value.trim();
+  const ti=document.getElementById('add-ti').value.trim();
+  const m=raw.match(/\/story\/(\d+)/)||raw.match(/^(\d+)$/);
+  if(!m){toast('請輸入有效的網址或數字 ID');return;}
+  const id=m[1];
+  if(stories.find(s=>s.id===id)){toast('此作品已在清單中');return;}
+  stories.push({id,title:ti});
+  document.getElementById('add-url').value='';
+  document.getElementById('add-ti').value='';
+  renderList();
+}
+
+function rmStory(i){stories.splice(i,1);renderList();}
+
+function resetDefault(){
+  stories=DEFAULT_STORIES.map(s=>({...s}));
+  renderList();toast('已還原預設清單');
+}
+
+// ── Fetch with proxy fallback ────────────────────────────────────
+async function fetchWith(url){
+  let lastErr;
+  for(let pi=0;pi<PROXIES.length;pi++){
+    try{
+      const r=await fetch(PROXIES[pi](url),{
+        headers:{
+          'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0 Safari/537.36',
+          'Accept':'text/html,application/xhtml+xml,*/*;q=0.8',
+          'Accept-Language':'zh-TW,zh;q=0.9,en;q=0.7',
+        },
+        signal:AbortSignal.timeout(15000)
+      });
+      if(!r.ok) throw new Error(`HTTP ${r.status}`);
+      const t=await r.text();
+      if(t.length<500) throw new Error(`回應過短(${t.length})`);
+      if(/host not in allowlist|access denied|403 forbidden/i.test(t.slice(0,200))) throw new Error('Proxy 拒絕');
+      return{text:t,pi};
+    }catch(e){lastErr=e;console.warn(`proxy[${pi}]`,e.message);}
+  }
+  throw new Error(`所有 proxy 失敗：${lastErr?.message}`);
+}
+
+// ── Main fetch ───────────────────────────────────────────────────
+async function startFetch(){
+  if(fetching)return;
+  const valid=stories.filter(s=>/^\d+$/.test(s.id));
+  if(!valid.length){showSt('清單中沒有有效的作品 ID','warn');return;}
+  fetching=true; results={};
+  document.getElementById('btn-fetch').disabled=true;
+  document.getElementById('btn-exp').disabled=true;
+  document.getElementById('res').innerHTML='';
+  document.getElementById('stats').innerHTML='';
+  document.getElementById('prg').style.display='block';
+  setPrg(0,'準備擷取...');
+
+  for(let i=0;i<valid.length;i++){
+    const s=valid[i];
+    const url=`https://www.penana.com/story/${s.id}/`;
+    showSt(`<span class="spin"></span> 擷取 ${s.title||'#'+s.id}（${i+1}/${valid.length}）`,'info');
+    setPrg(Math.round(i/valid.length*100), s.title||`#${s.id}`);
+    try{
+      const{text,pi}=await fetchWith(url);
+      const p=parsePage(text,s.id,s.title);
+      results[s.id]={...p,url,pi,error:null};
+    }catch(e){
+      results[s.id]={id:s.id,title:s.title||`作品#${s.id}`,url,chapters:[],pi:-1,error:e.message};
+    }
+    await sleep(350);
+  }
+
+  setPrg(100,'完成');
+  fetching=false;
+  document.getElementById('btn-fetch').disabled=false;
+  const tot=Object.values(results).reduce((a,r)=>a+r.chapters.length,0);
+  if(tot>0){
+    document.getElementById('btn-exp').disabled=false;
+    showSt(`✓ 完成！${valid.length} 部作品，共 ${tot} 章節`,'ok');
+  }else{
+    showSt('⚠ 擷取完成，但未解析到章節。請用 Debug 模式查看，或改用手動貼上 HTML。','warn');
+  }
+  renderRes();
+}
+
+// ── Parser ───────────────────────────────────────────────────────
+function parsePage(html, storyId, hintTitle) {
+  let title = hintTitle || '';
+  let chapters = [];
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+
+  // 1. 優先處理 DOM 解析
+  const chapterNodes = doc.querySelectorAll('.twrapper');
+
+  if (chapterNodes.length > 0) {
+    if (!title) {
+      title = doc.querySelector('.volumeName')?.textContent.trim() ||
+        doc.querySelector('h1')?.textContent.trim() ||
+        doc.title.split('|')[0].trim();
+    }
+
+    const seen = new Set();
+    chapterNodes.forEach(node => {
+      // 排除預定發布（尚未公開）的章節
+      if (node.getAttribute('href') === '#future' || node.classList.contains('scheduled')) {
+        return;
+      }
+
+      const titleNode = node.querySelector('.toc1');
+      if (titleNode) {
+        const chapterTitle = titleNode.innerText.trim();
+        const [reads, comments, words] = pickNums(node);
+
+        // 使用標題與數據作為唯一鍵值，避免行動版/電腦版選單重複出現造成重複計算
+        const key = `${chapterTitle}_${reads}_${comments}_${words}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          chapters.push({
+            title: chapterTitle,
+            reads: reads,
+            comments: comments,
+            words: words
+          });
+        }
+      }
+    });
+
+    // 關鍵：如果 DOM 已經抓到章節，直接回傳，避免下方 Script 再次新增
+    return { id: storyId, title: title || `作品#${storyId}`, chapters };
+  }
+
+  // 2. 備援邏輯：只有在 DOM 沒東西時才執行 (其餘代碼保持原樣...)
+  // ... (原本的 Script 解析部分)
+}
+
+// ── 精準提取數字 (專為 rread / rcomment 設計) ─────────────────────
+function pickNums(el) {
+  if (!el) return [0, 0, 0];
+
+  // 提取閱讀數
+  const rEl = el.querySelector('.rread');
+  const rMatch = rEl ? rEl.innerText.match(/\d+/) : null;
+  const reads = rMatch ? parseInt(rMatch[0]) : 0;
+
+  // 提取留言數
+  const cEl = el.querySelector('.rcomment');
+  const cMatch = cEl ? cEl.innerText.match(/\d+/) : null;
+  const comments = cMatch ? parseInt(cMatch[0]) : 0;
+
+  // 提取字數
+  const wEl = el.querySelector('.twords');
+  const wMatch = wEl ? wEl.innerText.replace(/,/g, '').match(/\d+/) : null;
+  const words = wMatch ? parseInt(wMatch[0]) : 0;
+
+  return [reads, comments, words];
+}
+
+function extractJSON(src,pos){
+  let depth=0,inStr=false,esc=false,start=pos;
+  for(let i=pos;i<src.length;i++){
+    const c=src[i];
+    if(esc){esc=false;continue;}
+    if(c==='\\'&&inStr){esc=true;continue;}
+    if(c==='"'){inStr=!inStr;continue;}
+    if(inStr)continue;
+    if(c==='{')depth++;
+    else if(c==='}'){depth--;if(depth===0)return JSON.parse(src.slice(start,i+1));}
+  }
+  return null;
+}
+
+function findChapters(obj, d = 0) {
+  if (d > 15 || !obj || typeof obj !== 'object') return { title: '', chapters: [] };
+
+  const keys = ['chapters', 'chapterList', 'parts', 'data'];
+  for (const key of keys) {
+    if (Array.isArray(obj[key]) && obj[key].length > 0) {
+      const chs = obj[key].map(ch => ({
+        title: clean(ch.title || ch.name || ch.chapter_title || ''),
+        reads: parseInt(ch.readCount || ch.views || ch.read_count || 0),
+        comments: parseInt(ch.commentCount || ch.comments || ch.comment_count || 0),
+        words: parseInt(ch.wordCount || ch.words || ch.word_count || 0)
+      })).filter(c => c.title);
+
+      if (chs.length) return { title: clean(obj.title || obj.name || ''), chapters: chs };
+    }
+  }
+
+  for (const v of Object.values(obj)) {
+    if (v && typeof v === 'object') {
+      const r = findChapters(v, d + 1);
+      if (r.chapters.length) return r;
+    }
+  }
+  return { title: '', chapters: [] };
+}
+
+function clean(s){return(s||'').replace(/\s+/g,' ').trim();}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+// ── Render results ───────────────────────────────────────────────
+function renderRes(){
+  const all=Object.values(results);if(!all.length)return;
+  let totR=0,totC=0,totCh=0,totW=0;
+  all.forEach(r=>r.chapters.forEach(c=>{totR+=c.reads;totC+=c.comments;totCh++;totW+=(c.words||0);}));
+  document.getElementById('stats').innerHTML=`
+    <div class="sg">
+      <div class="sb"><div class="l">作品數</div><div class="v c-ac">${all.length}</div></div>
+      <div class="sb"><div class="l">總章節</div><div class="v c-tl">${totCh.toLocaleString()}</div></div>
+      <div class="sb"><div class="l">總字數</div><div class="v c-gn">${totW.toLocaleString()}</div></div>
+      <div class="sb"><div class="l">總閱覽</div><div class="v c-am">${totR.toLocaleString()}</div></div>
+      <div class="sb"><div class="l">總留言</div><div class="v c-pk">${totC.toLocaleString()}</div></div>
+    </div>`;
+  const area=document.getElementById('res');
+  area.innerHTML='';
+  // Preserve original order
+  const ordered=stories.filter(s=>results[s.id]).map(s=>results[s.id]);
+  all.forEach(r=>{if(!ordered.find(o=>o.id===r.id))ordered.push(r);});
+
+  ordered.forEach(r=>{
+    const rR=r.chapters.reduce((a,c)=>a+c.reads,0);
+    const rC=r.chapters.reduce((a,c)=>a+c.comments,0);
+    const rW=r.chapters.reduce((a,c)=>a+(c.words||0),0);
+    const bid=`rb${r.id}`;
+    const b=document.createElement('div');
+    b.className='rblock';
+    b.innerHTML=`
+      <div class="rhead" onclick="tog('${bid}')">
+        <div class="rhl">
+          <div class="rhtitle">${esc(r.title)}</div>
+          <div class="rhmeta">
+            <span>📖 ${r.chapters.length} 章</span>
+            <span>📝 ${rW.toLocaleString()} 字</span>
+            <span>� ${rR.toLocaleString()}</span>
+            <span>💬 ${rC.toLocaleString()}</span>
+            <span>#${r.id}</span>
+            ${r.error?`<span style="color:var(--rd)">⚠ ${esc(r.error)}</span>`:''}
+          </div>
+        </div>
+        <div class="rhr">
+          <a href="${r.url}" target="_blank" style="font-size:11px;color:var(--tx3)" onclick="event.stopPropagation()">↗</a>
+          <span class="arrow" id="ar${bid}">▶</span>
+        </div>
+      </div>
+      <div class="rbody" id="${bid}">
+        ${r.chapters.length===0
+          ?`<div style="padding:14px 16px;font-size:12px;color:var(--tx3)">未解析到章節資料${r.error?`（${esc(r.error)}）`:''}。<br>請用手動貼上 HTML，作品 ID 填 <code>${r.id}</code>。</div>`
+          :`<div class="twrap"><table>
+              <thead><tr><th style="width:40px">#</th><th>章節標題</th><th style="width:80px">字數</th><th style="width:90px">閱覽數</th><th style="width:80px">留言數</th></tr></thead>
+              <tbody>${r.chapters.map((c,i)=>`
+                <tr>
+                  <td style="color:var(--tx3);font-size:12px">${i+1}</td>
+                  <td>${esc(c.title)}</td>
+                  <td><span class="badge" style="background:var(--bd);color:var(--tx2)">${(c.words||0).toLocaleString()}</span></td>
+                  <td><span class="badge bb">${c.reads.toLocaleString()}</span></td>
+                  <td><span class="badge bg">${c.comments.toLocaleString()}</span></td>
+                </tr>`).join('')}</tbody>
+            </table></div>`
+        }
+        <div class="tbar">
+          <button class="btn btn-gh btn-sm" onclick="cpOne('${r.id}','tsv')">⎘ 複製 TSV</button>
+          <button class="btn btn-gh btn-sm" onclick="cpOne('${r.id}','csv')">⎘ 複製 CSV</button>
+          <button class="btn btn-gh btn-sm" onclick="reFetch('${r.id}')">↺ 重新擷取</button>
+        </div>
+      </div>`;
+    area.appendChild(b);
+  });
+}
+
+function tog(id){
+  document.getElementById(id).classList.toggle('open');
+  document.getElementById('ar'+id).classList.toggle('open');
+}
+
+// ── Manual parse ─────────────────────────────────────────────────
+function parseManual(){
+  const html=document.getElementById('m-html').value.trim();
+  const id=document.getElementById('m-id').value.trim();
+  const ti=document.getElementById('m-ti').value.trim();
+  if(!html){toast('請貼上 HTML');return;}
+  if(!id||!/^\d+$/.test(id)){toast('請填入數字作品 ID');return;}
+  const p=parsePage(html,id,ti);
+  if(!p.chapters.length){showSt('解析失敗：未找到章節。請確認頁面已完整載入。','warn');return;}
+  results[id]={...p,url:`https://www.penana.com/story/${id}/`,pi:-1,error:null};
+  document.getElementById('m-html').value='';
+  document.getElementById('btn-exp').disabled=false;
+  showSt(`✓ 手動解析成功：「${p.title}」共 ${p.chapters.length} 章`,'ok');
+  renderRes();
+}
+
+// ── Debug ────────────────────────────────────────────────────────
+async function debugFetch(){
+  const url=(document.getElementById('dbg-url').value.trim()||
+    (stories[0]?`https://www.penana.com/story/${stories[0].id}/`:''));
+  if(!url){toast('請填入 URL');return;}
+  const out=document.getElementById('dbg-out');
+  out.classList.add('open');out.textContent='擷取中...';
+  try{
+    const{text,pi}=await fetchWith(url);
+    const doc=new DOMParser().parseFromString(text,'text/html');
+    const chLinks=[...doc.querySelectorAll('a[href*="/chapter/"]')].map(a=>a.getAttribute('href'));
+    const hints=[];
+    doc.querySelectorAll('script').forEach(s=>{
+      const src=s.textContent;if(src.length<30)return;
+      ['chapters','parts','chapterList','readCount','viewCount','__NEXT_DATA__','__NUXT__'].forEach(k=>{
+        if(src.includes(k))hints.push(`  ✓ script 含有 "${k}"  (len=${src.length})`);
+      });
+    });
+    // Try parsing too
+    const p=parsePage(text,url.match(/\/story\/(\d+)/)?.[1]||'?','');
+    out.textContent=[
+      `URL: ${url}`,
+      `使用 Proxy #${pi}`,
+      `HTML 長度: ${text.length} chars`,
+      `<title>: ${doc.title}`,
+      `H1: ${doc.querySelector('h1')?.textContent?.trim()||'(無)'}`,
+      ``,
+      `── 解析結果 ──`,
+      `標題: ${p.title}`,
+      `章節數: ${p.chapters.length}`,
+      p.chapters.length>0?p.chapters.slice(0,5).map((c,i)=>`  ${i+1}. ${c.title} | 字數:${c.words} 閱覽:${c.reads} 留言:${c.comments}`).join('\n'):'  ⚠ 無章節',
+      p.chapters.length>5?`  ...共 ${p.chapters.length} 章`:'',
+      ``,
+      `── /chapter/ 連結: ${chLinks.length} 個 ──`,
+      ...chLinks.slice(0,10).map(h=>'  '+h),
+      chLinks.length>10?`  ...還有 ${chLinks.length-10} 個`:'',
+      ``,
+      `── Script JSON 關鍵字 ──`,
+      ...hints,
+      ``,
+      `── HTML 前 1500 字 ──`,
+      text.slice(0,1500),
+    ].filter(x=>x!=='').join('\n');
+  }catch(e){
+    out.textContent='擷取失敗：'+e.message+'\n\n請改用手動貼上 HTML。';
+  }
+}
+
+// ── Re-fetch one ─────────────────────────────────────────────────
+async function reFetch(id){
+  const url=`https://www.penana.com/story/${id}/`;
+  const hint=stories.find(s=>s.id===id)?.title||'';
+  showSt(`<span class="spin"></span> 重新擷取 #${id}...`,'info');
+  try{
+    const{text}=await fetchWith(url);
+    const p=parsePage(text,id,hint);
+    results[id]={...p,url,error:null};
+    showSt(`✓ 已更新 #${id}：${p.chapters.length} 章`,'ok');
+    document.getElementById('btn-exp').disabled=false;
+  }catch(e){showSt(`擷取 #${id} 失敗：${e.message}`,'err');}
+  renderRes();
+}
+
+// ── Export Excel ─────────────────────────────────────────────────
+function exportExcel(){
+  if(!window.XLSX){toast('XLSX 未載入');return;}
+  const wb=XLSX.utils.book_new();
+  const all=stories.filter(s=>results[s.id]&&results[s.id].chapters.length>0).map(s=>results[s.id]);
+  Object.values(results).forEach(r=>{if(!all.find(a=>a.id===r.id)&&r.chapters.length>0)all.push(r);});
+  if(!all.length){toast('無章節資料可匯出');return;}
+
+  all.forEach(r=>{
+    const name=(r.title||`story_${r.id}`).replace(/[\\/:*?[\]]/g,'_').substring(0,28);
+    const rows=[
+      ['作品名稱',r.title],['作品連結',r.url],[],
+      ['序號','章節標題','字數','閱覽數','留言數'],
+    ];
+    r.chapters.forEach((c,i)=>rows.push([i+1,c.title,c.words||0,c.reads,c.comments]));
+    rows.push([]);
+    rows.push(['合計','',r.chapters.reduce((a,c)=>a+(c.words||0),0),r.chapters.reduce((a,c)=>a+c.reads,0),r.chapters.reduce((a,c)=>a+c.comments,0)]);
+    const ws=XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols']=[{wch:6},{wch:44},{wch:10},{wch:10},{wch:10}];
+    XLSX.utils.book_append_sheet(wb,ws,name);
+  });
+
+  // Summary sheet
+  const sum=[['作品ID','作品名稱','章節數','總字數','總閱覽','總留言','連結']];
+  all.forEach(r=>sum.push([r.id,r.title,r.chapters.length,r.chapters.reduce((a,c)=>a+(c.words||0),0),
+    r.chapters.reduce((a,c)=>a+c.reads,0),
+    r.chapters.reduce((a,c)=>a+c.comments,0),r.url]));
+  sum.push(['合計','',sum.slice(1).reduce((a,r)=>a+(r[2]||0),0),sum.slice(1).reduce((a,r)=>a+(r[3]||0),0),
+    sum.slice(1).reduce((a,r)=>a+(r[4]||0),0),
+    sum.slice(1).reduce((a,r)=>a+(r[5]||0),0),'']);
+  const ws2=XLSX.utils.aoa_to_sheet(sum);
+  ws2['!cols']=[{wch:10},{wch:30},{wch:8},{wch:12},{wch:12},{wch:12},{wch:44}];
+  XLSX.utils.book_append_sheet(wb,ws2,'總覽');
+
+  XLSX.writeFile(wb,`penana_${new Date().toISOString().slice(0,10)}.xlsx`);
+  toast('Excel 已下載！');
+}
+
+// ── Copy ────────────────────────────────────────────────────────
+function cpOne(id,fmt){
+  const r=results[id];if(!r)return;
+  let text;
+  if(fmt==='csv'){
+    const ls=['序號,章節標題,字數,閱覽數,留言數'];
+    r.chapters.forEach((c,i)=>ls.push(`${i+1},"${c.title.replace(/"/g,'""')}",${c.words||0},${c.reads},${c.comments}`));
+    text=ls.join('\n');
+  }else{
+    const ls=[`【${r.title}】`,'序號\t章節標題\t字數\t閱覽數\t留言數'];
+    r.chapters.forEach((c,i)=>ls.push(`${i+1}\t${c.title}\t${c.words||0}\t${c.reads}\t${c.comments}`));
+    text=ls.join('\n');
+  }
+  cpText(text);
+}
+
+function copyAllTSV(){
+  const ls=['作品ID\t作品名稱\t序號\t章節標題\t字數\t閱覽數\t留言數'];
+  stories.forEach(s=>{
+    const r=results[s.id];if(!r)return;
+    r.chapters.forEach((c,i)=>ls.push(`${r.id}\t${r.title}\t${i+1}\t${c.title}\t${c.words||0}\t${c.reads}\t${c.comments}`));
+  });
+  if(ls.length===1){toast('無資料');return;}
+  cpText(ls.join('\n'));
+}
+
+function cpText(text){
+  navigator.clipboard?.writeText(text).then(()=>toast('已複製 ✓')).catch(()=>{
+    const ta=Object.assign(document.createElement('textarea'),{value:text,style:'position:fixed;opacity:0'});
+    document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
+    toast('已複製 ✓');
+  });
+}
+
+// ── UI helpers ───────────────────────────────────────────────────
+const stMap={'info':'st-info','ok':'st-ok','err':'st-err','warn':'st-warn','error':'st-err'};
+function showSt(msg,type){
+  document.getElementById('sta').innerHTML=msg?`<div class="status ${stMap[type]||'st-info'}">${msg}</div>`:'';
+}
+function setPrg(p,l){
+  document.getElementById('pfill').style.width=p+'%';
+  document.getElementById('ppct').textContent=p+'%';
+  if(l)document.getElementById('ptxt').textContent=l;
+}
+function toast(msg){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.classList.add('show');
+  clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('show'),2400);
+}
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+</script>
+</body>
+</html>

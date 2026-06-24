@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>退休年資戰略儀表板 (獨立版)</title>
+    
+    <!-- 1. 載入 Tailwind CSS (樣式) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 2. 設定 Import Map (讓瀏覽器知道去哪裡抓 React 和圖示庫) -->
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18.2.0",
+            "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+            "lucide-react": "https://esm.sh/lucide-react@0.292.0"
+        }
+    }
+    </script>
+
+    <!-- 3. 載入 Babel (讓瀏覽器看不懂的 JSX 變成看得懂的 JS) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body { font-family: "Microsoft JhengHei", "PingFang TC", sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50">
+    <div id="root"></div>
+
+    <!-- 4. 主要程式碼邏輯 (設定為 module 以支援 import) -->
+    <script type="text/babel" data-type="module">
+        import React, { useState, useMemo } from 'react';
+        import { createRoot } from 'react-dom/client';
+        import { Calendar, TrendingUp, Shield, Clock, AlertTriangle, Target, Anchor, User, DollarSign, Briefcase, Award, ChevronRight, Crown, Map, Coins, Briefcase as BriefcaseIcon, Home } from 'lucide-react';
+
+        // ==========================================
+        // 🔧 使用者配置區 (請在此修改日期與金額)
+        // ==========================================
+
+        // 定義「今天」的日期字串，供後續設定自動引用
+        const TODAY = new Date().toISOString().split('T')[0];
+
+        const USER_CONFIG = {
+          // 基本資料
+          birthDate: "1988-09-07",
+          baseDate: TODAY,            // 模擬起始基準日
+          retirementAgeTarget: 65,    // 法定起領年齡
+          
+          // 🕹️ 預設模擬模式 (可選: 'public' | 'labor' | 'national')
+          // public: 公職在職 (累積退撫+公保)
+          // labor:  轉職勞工 (累積勞保)
+          // national: 待業/家管 (累積國保)
+          defaultMode: 'public',
+
+          // 💰 目前財務狀況 (2026 預估值)
+          currentAssets: 6380000,     // 自備資產 (595萬)
+          currentPassiveIncome: 239000, // 年被動收入 (27萬)
+
+          // 🏦 退休專戶/保險現值 (單位：元)
+          pension: {
+            publicInsurance: 213000,  // 公保
+            laborPension: 124100,     // 勞退
+            laborInsurance: 91000     // 勞保
+          },
+
+          // 🏆 財務目標設定
+          goals: {
+            assets: [
+              { val: 1000000, label: "真小資族" },
+              { val: 3000000, label: "第一桶金" },
+              { val: 6000000, label: "第二桶金" },
+              { val: 8000000, label: "看起來很吉利" },
+              { val: 10000000, label: "千萬資產" },
+              { val: 12500000, label: "階級跨越" },
+              { val: 15000000, label: "財富自由" },
+			  { val: 30000000, label: "好像蠻有錢" },
+			  { val: 50000000, label: "突破五千大關" },
+			  { val: 100000000, label: "前面1%了" }
+            ],
+            passive: [
+              { val: 120000, label: "躺平第一哩路(1w/月)" },
+              { val: 240000, label: "基礎生存(2w/月)" },
+              { val: 360000, label: "生活寬裕(3w/月)" },
+              { val: 480000, label: "完全替代(4w/月)" },
+              { val: 600000, label: "躺著也好(5w/月)" },
+              { val: 720000, label: "夢想生活(6w/月)" },
+              { val: 960000, label: "周休七日年入百萬" }
+            ]
+          },
+
+          // 📅 歷史年資輸入區
+          history: {
+            publicService: [{ start: "2018-04-22", end: TODAY }],
+            publicInsurance: [{ start: "2017-12-22", end: TODAY }],
+            laborInsurance: [{ start: "2011-06-10", end: "2015-01-05" }],
+            nationalPension: [{ start: "2015-01-06", end: "2017-12-21" }]
+          },
+
+          // 年資里程碑設定 (年)
+          milestones: {
+            level1: 15, // 門檻
+            level2: 20, // 安全
+            level3: 25  // 專家
+          }
+        };
+        // ==========================================
+
+        // 🛠️ Helper Functions
+        const calculateDurationInYears = (periods) => {
+          if (!periods || periods.length === 0) return 0;
+          let totalMilliseconds = 0;
+          periods.forEach(period => {
+            const start = new Date(period.start);
+            const end = new Date(period.end);
+            if (!isNaN(start) && !isNaN(end)) {
+              totalMilliseconds += (end - start);
+            }
+          });
+          return totalMilliseconds / (1000 * 60 * 60 * 24 * 365.25);
+        };
+
+        const Card = ({ children, className = "" }) => (
+          <div className={`bg-white rounded-xl shadow-sm border border-slate-200 p-6 ${className}`}>
+            {children}
+          </div>
+        );
+
+        const ProgressBar = ({ current, target, colorClass = "bg-blue-600", label, subLabel }) => {
+          const percentage = Math.min(100, Math.max(0, (current / target) * 100));
+          return (
+            <div className="mt-4">
+              <div className="flex justify-between text-sm mb-1 font-medium text-slate-700">
+                <span>{label}</span>
+                <span>{percentage.toFixed(1)}%</span>
+              </div>
+              <div className="w-full bg-slate-100 rounded-full h-3">
+                <div 
+                  className={`h-3 rounded-full transition-all duration-500 ease-out ${colorClass}`} 
+                  style={{ width: `${percentage}%` }}
+                ></div>
+              </div>
+              <div className="flex justify-between text-xs text-slate-500 mt-1">
+                <span>已累積: {current.toFixed(1)}</span>
+                <span>目標: {target} {subLabel}</span>
+              </div>
+            </div>
+          );
+        };
+
+        const GlobalProgressBar = ({ current, goals, title, unit = "萬" }) => {
+          const maxGoal = goals[goals.length - 1].val;
+          const currentPct = Math.min(100, (current / maxGoal) * 100);
+          const fmt = (n) => (n / 10000).toFixed(1);
+
+          return (
+            <div className="mt-8 pt-6 border-t border-slate-100">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2 text-slate-700 font-bold text-sm">
+                   <Map size={16} className="text-slate-400" />
+                   {title}全景地圖
+                </div>
+              </div>
+              
+              <div className="relative h-10 bg-slate-100 rounded-lg w-full flex items-center mt-6 mx-1">
+                {goals.map((goal, idx) => {
+                  const pct = (goal.val / maxGoal) * 100;
+                  return (
+                     <div key={idx} className="absolute top-0 h-full w-px bg-slate-200" style={{ left: `${pct}%` }}></div>
+                  );
+                })}
+
+                <div 
+                  className="absolute top-0 left-0 h-full bg-gradient-to-r from-emerald-100 to-emerald-200 opacity-60 rounded-l-lg transition-all duration-700"
+                  style={{ width: `${currentPct}%` }}
+                ></div>
+                <div 
+                  className="absolute top-0 left-0 h-full border-r-4 border-emerald-500 transition-all duration-700 rounded-l-lg"
+                  style={{ width: `${currentPct}%` }}
+                ></div>
+
+                <div 
+                    className="absolute -top-10 transform -translate-x-1/2 flex flex-col items-center z-20 transition-all duration-700"
+                    style={{ left: `${currentPct}%` }}
+                >
+                    <div className="px-2 py-1 text-xs font-bold text-white bg-emerald-600 rounded shadow-md whitespace-nowrap">
+                      目前: {fmt(current)}{unit}
+                    </div>
+                    <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-emerald-600"></div>
+                </div>
+
+                {goals.map((goal, idx) => {
+                  const pct = (goal.val / maxGoal) * 100;
+                  const isPassed = current >= goal.val;
+                  let labelTranslate = "-translate-x-1/2";
+                  if (pct < 5) labelTranslate = "translate-x-0";
+                  if (pct > 95) labelTranslate = "-translate-x-full";
+
+                  return (
+                    <div key={idx} className="absolute top-full mt-2 group" style={{ left: `${pct}%` }}>
+                       <div className={`flex flex-col items-center transform ${labelTranslate}`}>
+                          <span className={`text-[10px] font-mono font-bold ${isPassed ? 'text-emerald-600' : 'text-slate-400'}`}>
+                            {goal.val / 10000}
+                          </span>
+                          <span className="text-[9px] text-slate-300 hidden sm:block whitespace-nowrap">
+                            {goal.label}
+                          </span>
+                       </div>
+                    </div>
+                  );
+                })}
+                
+                <div className="absolute top-full mt-2 left-0 transform -translate-x-1/2">
+                   <span className="text-[10px] font-mono text-slate-300">0</span>
+                </div>
+              </div>
+              <div className="h-6"></div>
+            </div>
+          );
+        };
+
+        const FinancialProgress = ({ current, goals, icon: Icon, title }) => {
+          const nextGoalIndex = goals.findIndex(g => g.val > current);
+          const currentLevel = nextGoalIndex === -1 ? goals.length : nextGoalIndex;
+          const targetGoal = nextGoalIndex === -1 ? goals[goals.length - 1] : goals[nextGoalIndex];
+          const prevGoalVal = nextGoalIndex > 0 ? goals[nextGoalIndex - 1].val : 0;
+          
+          const totalRange = targetGoal.val - prevGoalVal;
+          const currentProgress = current - prevGoalVal;
+          const safeTotalRange = totalRange <= 0 ? 1 : totalRange;
+          
+          const percentage = nextGoalIndex === -1 ? 100 : Math.min(100, Math.max(0, (currentProgress / safeTotalRange) * 100));
+          const absoluteRatio = nextGoalIndex === -1 ? 100 : (current / targetGoal.val) * 100;
+          const fmt = (n) => (n / 10000).toFixed(1) + "萬";
+          const currentTitle = currentLevel === 0 ? "新手上路" : goals[currentLevel - 1].label;
+
+          return (
+            <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 relative overflow-hidden group hover:border-emerald-300 transition-colors">
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white rounded-full shadow-sm text-emerald-600 ring-1 ring-slate-100">
+                    <Icon size={20} />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-700">{title}</h4>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                       <span className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
+                         Lv.{currentLevel}
+                       </span>
+                       <span className="text-xs font-medium text-emerald-700">
+                         {currentTitle}
+                       </span>
+                    </div>
+                  </div>
+                </div>
+                {nextGoalIndex === -1 && <Crown className="text-amber-400 w-6 h-6 animate-pulse" />}
+              </div>
+              
+              <div className="mb-2">
+                 <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-bold text-slate-800 font-mono tracking-tight">
+                      {fmt(current)}
+                    </span>
+                    <span className="text-sm text-slate-400 font-mono">
+                      / {nextGoalIndex === -1 ? "已畢業" : fmt(targetGoal.val)}
+                    </span>
+                 </div>
+              </div>
+
+              <div className="relative pt-2 pb-1">
+                <div className="flex justify-between text-xs mb-1 font-medium text-slate-500">
+                   <span>本級經驗值 (Level XP)</span>
+                   <span>{nextGoalIndex === -1 ? "MAX" : `${percentage.toFixed(1)}%`}</span>
+                </div>
+                
+                <div className="h-2.5 bg-slate-200 rounded-full overflow-hidden shadow-inner">
+                   <div 
+                     className={`h-full rounded-full transition-all duration-700 ease-out ${nextGoalIndex === -1 ? 'bg-amber-400' : 'bg-emerald-500'}`}
+                     style={{ width: `${percentage}%` }}
+                   ></div>
+                </div>
+
+                <div className="mt-2 flex justify-between items-center">
+                   <div className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
+                      總目標達成率: {absoluteRatio.toFixed(1)}%
+                   </div>
+                   {nextGoalIndex !== -1 ? (
+                     <div className="text-xs text-slate-400 flex items-center justify-end gap-1">
+                       下一關：{targetGoal.label} <ChevronRight size={12} />
+                     </div>
+                   ) : (
+                     <div className="text-xs text-amber-500 font-bold">恭喜達成所有里程碑！</div>
+                   )}
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        const StatBox = ({ title, value, subtext, icon: Icon, color = "text-slate-600", active = false }) => (
+          <div className={`flex flex-col transition-all duration-300 ${active ? 'scale-105 transform' : ''}`}>
+            <div className="flex items-center gap-2 mb-1">
+              <Icon className={`w-4 h-4 ${color}`} />
+              <span className={`text-sm font-medium ${active ? 'text-slate-800 font-bold' : 'text-slate-500'}`}>
+                {title} {active && <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse ml-1"></span>}
+              </span>
+            </div>
+            <div className={`text-2xl font-bold font-mono tracking-tight ${active ? 'text-emerald-700' : 'text-slate-800'}`}>
+              {value}
+            </div>
+            {subtext && <div className="text-xs text-slate-400 mt-1">{subtext}</div>}
+          </div>
+        );
+
+        const PensionBox = ({ title, amount, color = "text-slate-600" }) => (
+            <div className="bg-slate-50 rounded p-3 flex justify-between items-center border border-slate-100">
+                <span className="text-xs text-slate-500 font-medium flex items-center gap-1">
+                    <Coins size={12} className={color} /> {title}
+                </span>
+                <span className="font-mono font-bold text-slate-700">
+                    {(amount / 10000).toFixed(2)} <span className="text-xs font-normal text-slate-400">萬</span>
+                </span>
+            </div>
+        );
+
+        // 🕹️ 模式選擇按鈕組件
+        const ModeSelector = ({ mode, setMode }) => {
+          const modes = [
+            { id: 'public', label: '公職在職', icon: User, color: 'bg-blue-100 text-blue-700 border-blue-200' },
+            { id: 'labor', label: '轉職勞工', icon: BriefcaseIcon, color: 'bg-orange-100 text-orange-700 border-orange-200' },
+            { id: 'national', label: '待業/國保', icon: Home, color: 'bg-amber-100 text-amber-700 border-amber-200' },
+          ];
+
+          return (
+            <div className="flex bg-slate-100 p-1 rounded-lg gap-1">
+              {modes.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => setMode(m.id)}
+                  className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium transition-all duration-200 ${
+                    mode === m.id 
+                      ? 'bg-white shadow-sm text-slate-800 ring-1 ring-black/5' 
+                      : 'text-slate-500 hover:bg-slate-200/50'
+                  }`}
+                >
+                  <m.icon size={16} className={mode === m.id ? m.color.split(' ')[1] : 'text-slate-400'} />
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          );
+        };
+
+        function RetirementDashboard() {
+          const [simulationDate, setSimulationDate] = useState(new Date().toISOString().split('T')[0]);
+          // State: 'public' | 'labor' | 'national'
+          const [simulationMode, setSimulationMode] = useState(USER_CONFIG.defaultMode);
+
+          const BIRTH_DATE = useMemo(() => new Date(USER_CONFIG.birthDate), []);
+          const BASE_DATE = useMemo(() => new Date(USER_CONFIG.baseDate), []);
+          
+          const baseSeniority = useMemo(() => ({
+            publicService: calculateDurationInYears(USER_CONFIG.history.publicService),
+            publicInsurance: calculateDurationInYears(USER_CONFIG.history.publicInsurance),
+            laborInsurance: calculateDurationInYears(USER_CONFIG.history.laborInsurance),
+            nationalPension: calculateDurationInYears(USER_CONFIG.history.nationalPension)
+          }), []);
+
+          const currentDateObj = new Date(simulationDate);
+          const timeDiff = currentDateObj - BASE_DATE;
+          const yearsDiff = timeDiff / (1000 * 60 * 60 * 24 * 365.25);
+          const elapsedYears = Math.max(0, yearsDiff);
+
+          // 🧮 核心年資計算邏輯 (根據模式分配年資)
+          // 如果是 'public' 模式，公職年資增加；否則凍結在基準點
+          const currentPublicService = baseSeniority.publicService + (simulationMode === 'public' ? elapsedYears : 0);
+          const currentPublicInsurance = baseSeniority.publicInsurance + (simulationMode === 'public' ? elapsedYears : 0);
+          
+          // 如果是 'labor' 模式，勞保增加
+          const currentLabor = baseSeniority.laborInsurance + (simulationMode === 'labor' ? elapsedYears : 0);
+          
+          // 如果是 'national' 模式，國保增加
+          const currentNational = baseSeniority.nationalPension + (simulationMode === 'national' ? elapsedYears : 0);
+
+          // 雙軌合計 = 勞保 + 國保
+          const currentLaborNational = currentLabor + currentNational;
+
+          const ageDiff = currentDateObj - BIRTH_DATE;
+          const currentAge = ageDiff / (1000 * 60 * 60 * 24 * 365.25);
+          const currentAgeVirtual = Math.floor(currentAge) + 1;
+
+          const getRealAge = () => {
+            let years = currentDateObj.getFullYear() - BIRTH_DATE.getFullYear();
+            let months = currentDateObj.getMonth() - BIRTH_DATE.getMonth();
+            let days = currentDateObj.getDate() - BIRTH_DATE.getDate();
+            if (days < 0) {
+              months--;
+            }
+            if (months < 0) {
+              years--;
+              months += 12;
+            }
+            return `${years}歲${months}個月`;
+          };
+
+          const { level1, level2, level3 } = USER_CONFIG.milestones;
+          const remainingForLevel1 = Math.max(0, level1 - currentPublicService);
+          const remainingForLevel2 = Math.max(0, level2 - currentPublicService);
+          const remainingForLevel3 = Math.max(0, level3 - currentPublicService);
+          const remainingForDualTrack = Math.max(0, 15 - currentLaborNational);
+
+          const getProjectedDate = (yearsRemaining) => {
+            if (yearsRemaining <= 0) return "已達成";
+            const futureDate = new Date(currentDateObj.getTime() + (yearsRemaining * 365.25 * 24 * 60 * 60 * 1000));
+            return `${futureDate.getFullYear()}年${futureDate.getMonth() + 1}月`;
+          };
+
+          const formatYears = (val) => {
+            const y = Math.floor(val);
+            const m = Math.round((val - y) * 12);
+            return `${y}年${m}個月`;
+          };
+
+          const totalPensionSavings = USER_CONFIG.pension.publicInsurance + USER_CONFIG.pension.laborPension + USER_CONFIG.pension.laborInsurance;
+
+          return (
+            <div className="min-h-screen bg-slate-50 p-4 font-sans text-slate-900">
+              <div className="max-w-4xl mx-auto space-y-6">
+                
+                {/* Header */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
+                  <div>
+                    <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
+                      <Shield className="w-6 h-6 text-emerald-600" />
+                      退休年資戰略儀表板 v2.5
+                    </h1>
+                    <p className="text-slate-500 text-sm mt-1 flex items-center gap-3">
+                      <span>琉</span>
+                      <span className="text-slate-300">|</span>
+                      <span>模擬日期：{simulationDate}</span>
+                      <span className="text-slate-300">|</span>
+                      <span className="font-semibold text-emerald-600 bg-emerald-50 px-2 rounded">
+                         {getRealAge()} (虛 {currentAgeVirtual})
+                      </span>
+                    </p>
+                  </div>
+                  
+                  <div className="flex flex-col gap-2 w-full md:w-auto">
+                    <input 
+                      type="date" 
+                      value={simulationDate}
+                      onChange={(e) => setSimulationDate(e.target.value)}
+                      className="px-4 py-2 bg-white border border-slate-300 rounded-lg shadow-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* New 3-Way Mode Selector */}
+                <div className="bg-white rounded-lg p-4 shadow-sm border border-slate-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Target className="w-4 h-4 text-slate-500" />
+                      <span className="font-semibold text-sm text-slate-700">模擬職涯路徑設定</span>
+                    </div>
+                    <span className="text-xs text-slate-400">選擇不同模式以預測年資累積</span>
+                  </div>
+                  <ModeSelector mode={simulationMode} setMode={setSimulationMode} />
+                  
+                  {/* Dynamic Warning/Info based on mode */}
+                  <div className="mt-3 text-xs p-2 rounded bg-slate-50 border border-slate-100 text-slate-500 flex items-start gap-2">
+                    {simulationMode === 'public' && <span className="text-blue-600 font-bold">目前累積：退撫、公保</span>}
+                    {simulationMode === 'labor' && <span className="text-orange-600 font-bold">目前累積：勞保、勞退</span>}
+                    {simulationMode === 'national' && <span className="text-amber-600 font-bold">目前累積：國保</span>}
+                    <span>
+                      {simulationMode === 'public' && "公職年資持續累積中，勞/國保年資凍結。"}
+                      {simulationMode === 'labor' && "轉職私人企業，勞保年資增加，公職年資凍結。"}
+                      {simulationMode === 'national' && "未就業狀態，國保年資增加，公職/勞保年資凍結。"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Main Grid: Seniority */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card className={`border-t-4 border-t-blue-500 relative overflow-hidden transition-opacity duration-300 ${simulationMode !== 'public' ? 'opacity-90' : ''}`}>
+                    <div className="absolute top-0 right-0 p-4 opacity-5">
+                      <Anchor size={120} />
+                    </div>
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <span className="w-2 h-6 bg-blue-500 rounded-sm"></span>
+                        支柱一：公職退撫
+                      </h2>
+                      <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-1 rounded">核心</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <StatBox 
+                        title="退撫年資" 
+                        value={formatYears(currentPublicService)} 
+                        icon={Clock} 
+                        color="text-blue-600" 
+                        active={simulationMode === 'public'}
+                      />
+                      <StatBox 
+                        title="公保年資" 
+                        value={formatYears(currentPublicInsurance)} 
+                        icon={Shield} 
+                        color="text-indigo-600"
+                        active={simulationMode === 'public'}
+                      />
+                    </div>
+                    
+                    <div className="mb-6 space-y-2">
+                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">目前累計權益</h3>
+                         <PensionBox title="公保養老給付" amount={USER_CONFIG.pension.publicInsurance} color="text-indigo-500" />
+                    </div>
+
+                    <div className="space-y-4">
+                      <ProgressBar label={`Level 1 (${level1}年)`} current={currentPublicService} target={level1} subLabel="年" colorClass="bg-blue-400" />
+                      <div className="flex justify-between text-xs text-slate-400 -mt-3 mb-2">
+                         <span>{getProjectedDate(remainingForLevel1)}</span>
+                         <span>剩餘 {formatYears(remainingForLevel1)}</span>
+                      </div>
+                      <ProgressBar label={`Level 2 (${level2}年)`} current={currentPublicService} target={level2} subLabel="年" colorClass="bg-blue-600" />
+                      <div className="flex justify-between text-xs text-slate-400 -mt-3 mb-2">
+                         <span>{getProjectedDate(remainingForLevel2)}</span>
+                         <span>剩餘 {formatYears(remainingForLevel2)}</span>
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card className={`border-t-4 border-t-orange-500 relative overflow-hidden transition-opacity duration-300 ${simulationMode === 'public' ? 'opacity-90' : ''}`}>
+                     <div className="absolute top-0 right-0 p-4 opacity-5">
+                      <Target size={120} />
+                    </div>
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <span className="w-2 h-6 bg-orange-500 rounded-sm"></span>
+                        支柱二：勞保＋國保
+                      </h2>
+                      <span className="bg-orange-100 text-orange-800 text-xs font-bold px-2 py-1 rounded">雙軌</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                       <StatBox 
+                         title="勞保年資" 
+                         value={formatYears(currentLabor)} 
+                         icon={TrendingUp} 
+                         color="text-orange-600" 
+                         active={simulationMode === 'labor'}
+                       />
+                       <StatBox 
+                         title="國保年資" 
+                         value={formatYears(currentNational)} 
+                         subtext={simulationMode === 'national' ? "累積中" : "目前凍結"} 
+                         icon={Shield} 
+                         color="text-amber-600"
+                         active={simulationMode === 'national'}
+                       />
+                    </div>
+                    
+                    <div className="mb-6 space-y-2">
+                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">目前累計權益</h3>
+                         <PensionBox title="勞退個人專戶" amount={USER_CONFIG.pension.laborPension} color="text-orange-500" />
+                         <PensionBox title="勞保一次金" amount={USER_CONFIG.pension.laborInsurance} color="text-amber-500" />
+                    </div>
+
+                    <div className="bg-orange-50 rounded-lg p-3 border border-orange-100 mt-4">
+                       <div className="flex justify-between items-end mb-2">
+                         <span className="text-sm font-semibold text-orange-900">合計年資</span>
+                         <span className="text-2xl font-bold text-orange-700">{formatYears(currentLaborNational)}</span>
+                       </div>
+                       <div className="w-full bg-orange-200 rounded-full h-2">
+                          <div className="h-2 rounded-full bg-orange-500" style={{ width: `${Math.min(100, (currentLaborNational / 15) * 100)}%` }}></div>
+                       </div>
+                       <div className="flex justify-between mt-2 text-xs text-orange-800">
+                          <span>目標：15年</span>
+                          <span>缺口：{formatYears(remainingForDualTrack)}</span>
+                       </div>
+                    </div>
+                     {simulationMode === 'public' && remainingForDualTrack > 0 && (
+                         <div className="flex items-start gap-2 bg-yellow-50 text-yellow-800 text-xs p-3 rounded border border-yellow-200 mt-4">
+                           <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                           <p>警示：公職累積模式中，支柱二年資<strong>暫停累積</strong>。若持續公職至退休，此欄位將無法達成月退門檻。</p>
+                         </div>
+                       )}
+                  </Card>
+                </div>
+
+                {/* Financial Goals */}
+                <Card className="border-t-4 border-t-emerald-500">
+                  <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                        <span className="w-2 h-6 bg-emerald-500 rounded-sm"></span>
+                        財務自由雷達
+                      </h2>
+                      <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-1 rounded">
+                        資產與現金流
+                      </span>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <FinancialProgress 
+                      title="總資產累積" 
+                      current={USER_CONFIG.currentAssets} 
+                      goals={USER_CONFIG.goals.assets} 
+                      icon={Briefcase} 
+                    />
+                    <FinancialProgress 
+                      title="被動收入 (年)" 
+                      current={USER_CONFIG.currentPassiveIncome} 
+                      goals={USER_CONFIG.goals.passive} 
+                      icon={DollarSign} 
+                    />
+                  </div>
+
+                  <div className="mt-4 p-3 bg-slate-50 border border-slate-200 rounded-lg flex justify-between items-center">
+                     <span className="text-sm text-slate-600 font-bold">🛡️ 額外安全網：退休準備金現值</span>
+                     <span className="font-mono text-lg font-bold text-slate-800">
+                        {(totalPensionSavings / 10000).toFixed(2)} <span className="text-sm font-normal text-slate-500">萬</span>
+                     </span>
+                  </div>
+
+                  {/* 全景地圖 */}
+                  <GlobalProgressBar 
+                     current={USER_CONFIG.currentAssets} 
+                     goals={USER_CONFIG.goals.assets} 
+                     title="資產" 
+                     unit="萬"
+                  />
+                  <GlobalProgressBar 
+                     current={USER_CONFIG.currentPassiveIncome} 
+                     goals={USER_CONFIG.goals.passive} 
+                     title="被動收入" 
+                     unit="萬/年"
+                  />
+
+                  <div className="mt-4 flex flex-col md:flex-row gap-4 text-xs text-slate-400 bg-slate-50 p-2 rounded">
+                     <div className="flex items-center gap-2">
+                       <Award size={14} className="text-emerald-500"/>
+                       <span>說明：</span>
+                     </div>
+                     <div>
+                       <span className="font-bold text-slate-600">全景地圖</span>：顯示從零開始到最終目標的整體位置。
+                     </div>
+                     <div>
+                       <span className="font-bold text-slate-600">本級進度</span>：專注於當前關卡的衝刺。
+                     </div>
+                  </div>
+                </Card>
+
+              </div>
+            </div>
+          );
+        }
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<RetirementDashboard />);
+    </script>
+</body>
+</html>

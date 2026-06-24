@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的投資儀表板（快捷錄入版）</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', 'Microsoft JhengHei', sans-serif; background-color: #0b0f1a; color: #e2e8f0; }
+        .glass-card { background: rgba(23, 32, 53, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .positive { color: #10b981; }
+        .negative { color: #f43f5e; }
+        .table-container { overflow-x: auto; scrollbar-width: thin; scrollbar-color: #334155 #0f172a; }
+        input, select { background: #1e293b !important; color: white; border: 1px solid #334155 !important; border-radius: 6px; padding: 4px 8px; font-size: 0.875rem; }
+        .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; }
+        .progress-fill { transition: width 0.6s ease; }
+    </style>
+</head>
+<body class="p-4 md:p-8 lg:p-12">
+
+    <div class="max-w-[1600px] mx-auto">
+        <header class="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-10 gap-6">
+            <div>
+                <h1 class="text-3xl font-extrabold tracking-tight text-white">我的投資儀表板 <span class="text-blue-500 text-sm ml-2">v2026.QuickEntry</span></h1>
+                <p class="text-slate-400 text-sm mt-1">支援快捷複製貼上、手動庫存編輯與 CSV 匯出</p>
+            </div>
+            
+            <div class="flex flex-wrap gap-3">
+                <button onclick="openModal('pasteModal')" class="bg-indigo-600 hover:bg-indigo-500 px-5 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2">
+                    📋 批量貼上
+                </button>
+                <button onclick="openModal('addStockModal')" class="bg-blue-600 hover:bg-blue-500 px-5 py-2 rounded-xl text-sm font-bold transition">
+                    ＋ 新增持股
+                </button>
+                <button onclick="downloadTemplate()" class="bg-slate-700 hover:bg-slate-600 px-5 py-2 rounded-xl text-sm font-bold transition">
+                    📥 下載範本
+                </button>
+                <div class="h-8 w-px bg-slate-800 mx-1 hidden sm:block"></div>
+                <button onclick="exportData()" class="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-xl text-xs text-slate-400">備份 JSON</button>
+                <label class="bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-xl text-xs cursor-pointer text-slate-400">
+                    匯入 <input type="file" class="hidden" onchange="importData(event)">
+                </label>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
+            <div class="glass-card p-7 rounded-3xl shadow-lg border-t-2 border-blue-500/50">
+                <p class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">總市值 (現值)</p>
+                <h3 id="stat-total-value" class="text-3xl font-black text-white">0</h3>
+            </div>
+            <div class="glass-card p-7 rounded-3xl shadow-lg border-t-2 border-slate-600/50">
+                <p class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">總投入成本</p>
+                <h3 id="stat-total-cost" class="text-3xl font-black text-slate-200">0</h3>
+            </div>
+            <div class="glass-card p-7 rounded-3xl shadow-lg border-t-2 border-emerald-500/50">
+                <p class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">預估總損益</p>
+                <div class="flex items-baseline gap-3">
+                    <h3 id="stat-total-profit" class="text-3xl font-black">0</h3>
+                    <span id="stat-total-percent" class="text-lg font-bold">0%</span>
+                </div>
+            </div>
+            <div class="glass-card p-7 rounded-3xl shadow-lg border-t-2 border-amber-500/50">
+                <p class="text-slate-400 text-xs font-bold uppercase tracking-widest mb-2">預估年息 (5%)</p>
+                <h3 id="stat-est-dividend" class="text-3xl font-black text-amber-400">0</h3>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-12 gap-8">
+            <div class="xl:col-span-8">
+                <div class="glass-card rounded-3xl overflow-hidden shadow-2xl border border-white/5">
+                    <div id="tab-container" class="flex border-b border-slate-800 bg-slate-900/40 overflow-x-auto">
+                        </div>
+                    <div class="table-container">
+                        <table class="w-full text-left text-sm border-separate border-spacing-0">
+                            <thead>
+                                <tr class="bg-slate-800/60 text-slate-400 text-[11px] uppercase tracking-tighter">
+                                    <th class="px-5 py-4 font-bold border-b border-slate-700 cursor-pointer" onclick="sortTable('name')">資產名稱 / 代碼</th>
+                                    <th class="px-5 py-4 font-bold border-b border-slate-700 cursor-pointer" onclick="sortTable('shares')">股數</th>
+                                    <th class="px-5 py-4 font-bold border-b border-slate-700 cursor-pointer" onclick="sortTable('currentPrice')">即時現價</th>
+                                    <th class="px-5 py-4 font-bold border-b border-slate-700 cursor-pointer" onclick="sortTable('costPrice')">平均成本</th>
+                                    <th class="px-5 py-4 font-bold border-b border-slate-700">市值</th>
+                                    <th class="px-5 py-4 font-bold border-b border-slate-700">損益</th>
+                                    <th class="px-5 py-4 font-bold border-b border-slate-700 text-center cursor-pointer" onclick="sortTable('ratio')">權重</th>
+                                    <th class="px-5 py-4 font-bold border-b border-slate-700">分類</th>
+                                    <th class="px-5 py-4 border-b border-slate-700 text-center">刪除</th>
+                                </tr>
+                            </thead>
+                            <tbody id="portfolio-body" class="divide-y divide-slate-800">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="xl:col-span-4 space-y-8">
+                <div class="glass-card p-8 rounded-3xl shadow-xl">
+                    <h4 class="text-lg font-bold mb-8 flex items-center gap-3 text-slate-200">
+                        <span class="w-1.5 h-6 bg-blue-500 rounded-full"></span>
+                        前 10 大持股權重
+                    </h4>
+                    <div id="top-holdings-list" class="space-y-6"></div>
+                </div>
+
+                <div class="glass-card p-8 rounded-3xl shadow-xl">
+                    <h4 class="text-lg font-bold mb-8 flex items-center gap-3 text-slate-200">
+                        <span class="w-1.5 h-6 bg-emerald-500 rounded-full"></span>
+                        資產配置比例
+                    </h4>
+                    <div class="h-[300px] relative">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="pasteModal" class="hidden fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 p-4">
+        <div class="glass-card w-full max-w-2xl p-8 rounded-3xl border border-slate-700">
+            <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">📋 批量貼上數據</h2>
+            <p class="text-slate-400 text-sm mb-4">請貼上從 Excel 複製的內容（包含：名稱, 代碼, 股數, 現價, 成本, 分類）。</p>
+            <textarea id="paste-area" class="w-full h-64 bg-slate-900 border border-slate-700 rounded-xl p-4 font-mono text-xs mb-6 outline-none focus:ring-2 focus:ring-indigo-500" placeholder="格式範例：\n國泰10Y+金融債\t00933B\t40000\t16.16\t15.09\t金融債"></textarea>
+            <div class="flex gap-4">
+                <button onclick="closeModal('pasteModal')" class="flex-1 py-3 bg-slate-800 rounded-xl font-bold">取消</button>
+                <button onclick="processPaste()" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold transition">解析並匯入</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="addStockModal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div class="glass-card w-full max-w-md p-8 rounded-3xl shadow-2xl">
+            <h2 class="text-2xl font-bold mb-6 text-white">新增投資項目</h2>
+            <div class="grid grid-cols-2 gap-4">
+                <div class="col-span-2">
+                    <label class="block text-xs text-slate-500 mb-1 ml-1">資產名稱</label>
+                    <input type="text" id="in-name" placeholder="名稱" class="w-full">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-500 mb-1 ml-1">代碼</label>
+                    <input type="text" id="in-code" placeholder="代碼" class="w-full">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-500 mb-1 ml-1">分類</label>
+                    <input type="text" id="in-cat" placeholder="例如：高股息" class="w-full">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-500 mb-1 ml-1">股數</label>
+                    <input type="number" id="in-shares" class="w-full">
+                </div>
+                <div>
+                    <label class="block text-xs text-slate-500 mb-1 ml-1">目前股價</label>
+                    <input type="number" id="in-price" step="0.01" class="w-full">
+                </div>
+                <div class="col-span-2">
+                    <label class="block text-xs text-slate-500 mb-1 ml-1">平均成本價</label>
+                    <input type="number" id="in-cost" step="0.01" class="w-full">
+                </div>
+            </div>
+            <div class="flex gap-3 mt-8">
+                <button onclick="closeModal('addStockModal')" class="flex-1 py-3 rounded-xl bg-slate-800">取消</button>
+                <button onclick="addStock()" class="flex-1 py-3 rounded-xl bg-blue-600 font-bold">確認新增</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 核心資料 ---
+        let portfolio = [{"id":1773990235409,"name":"國泰10Y+金融債","code":"00933B","category":"金融債","shares":40000,"currentPrice":16.16,"costPrice":15.09},{"id":9,"name":"群益ESG投等債20+","code":"金融債","category":"金融債","shares":35000,"currentPrice":14.91,"costPrice":14.5},{"id":1773990907809,"name":"元大金","code":"2885","category":"金融股","shares":11042,"currentPrice":44.2,"costPrice":16.72},{"id":1773990732602,"name":"大成","code":"1210","category":"傳產","shares":6000,"currentPrice":54,"costPrice":55.35},{"id":1773990622825,"name":"00878","code":"00878","category":"高股息","shares":13242,"currentPrice":22.47,"costPrice":14.33},{"id":1773990387017,"name":"00713","code":"-","category":"高股息","shares":5548,"currentPrice":51.7,"costPrice":48.34},{"id":1773990576025,"name":"00858","code":"00858","category":"市值ETF","shares":8895,"currentPrice":31.89,"costPrice":27.97},{"id":2,"name":"聯發科","code":"2454","category":"科技","shares":150,"currentPrice":1700,"costPrice":1751.8},{"id":1773990661937,"name":"00918","code":"00918","category":"高股息","shares":11000,"currentPrice":22.58,"costPrice":22.56},{"id":1773990872121,"name":"玉山金","code":"2884","category":"金融股","shares":6262,"currentPrice":31.8,"costPrice":17.94},{"id":1773990827660,"name":"漢唐","code":"2404","category":"科技","shares":200,"currentPrice":930,"costPrice":303.17},{"id":6,"name":"0050","code":"0050","category":"市值ETF","shares":2368,"currentPrice":76,"costPrice":68},{"id":7,"name":"00981T","code":"00981T","category":"高股息","shares":16000,"currentPrice":11.06,"costPrice":11.2},{"id":1773991070378,"name":"廣達","code":"2382","category":"科技","shares":500,"currentPrice":283.5,"costPrice":289.01},{"id":1773990957961,"name":"中菲","code":"2403","category":"科技","shares":1000,"currentPrice":109.5,"costPrice":121.17},{"id":1773991100225,"name":"鴻海","code":"2317","category":"科技","shares":500,"currentPrice":203,"costPrice":221.01},{"id":3,"name":"漢唐","code":"2404","category":"預設","shares":100,"currentPrice":930,"costPrice":958.85},{"id":1773990781202,"name":"興農","code":"1712","category":"傳產","shares":2000,"currentPrice":44.55,"costPrice":41.23},{"id":4,"name":"京元電","code":"2449","category":"科技","shares":240,"currentPrice":308,"costPrice":82.34},{"id":1773991244417,"name":"00687B","code":"00687B","category":"金融債","shares":2000,"currentPrice":28.57,"costPrice":31.11},{"id":1773991121610,"name":"00922","code":"00922","category":"市值ETF","shares":2000,"currentPrice":28.18,"costPrice":28.48},{"id":1773991421099,"name":"虎航","code":"6757","category":"傳產","shares":1000,"currentPrice":52.9,"costPrice":93.25},{"id":1,"name":"台積電","code":"2330","category":"科技","shares":20,"currentPrice":1850,"costPrice":1800},{"id":8,"name":"0052","code":"0052","category":"科技","shares":779,"currentPrice":45.26,"costPrice":39.47},{"id":1773991266323,"name":"00858","code":"00858","category":"市值ETF","shares":1000,"currentPrice":31.89,"costPrice":32.57}];
+
+        let categories = ["全部"];
+        let currentFilter = '全部', sortKey = 'ratio', sortOrder = -1, catChart;
+
+        Chart.register(ChartDataLabels);
+        document.addEventListener('DOMContentLoaded', () => {
+            const saved = localStorage.getItem('myPortfolio_v3');
+            if (saved) portfolio = JSON.parse(saved);
+            updateDashboard();
+        });
+
+        function updateDashboard() {
+            refreshCategories();
+            calculateStats();
+            renderTabs();
+            renderTable();
+            renderTop10List();
+            renderCategoryChart();
+            localStorage.setItem('myPortfolio_v3', JSON.stringify(portfolio));
+        }
+
+        function refreshCategories() {
+            const currentCats = [...new Set(portfolio.map(i => i.category))];
+            categories = ["全部", ...currentCats.sort()];
+        }
+
+        function calculateStats() {
+            let totalVal = 0, totalCost = 0;
+            portfolio.forEach(i => {
+                totalVal += i.shares * i.currentPrice;
+                totalCost += i.shares * i.costPrice;
+            });
+            const profit = totalVal - totalCost;
+            const percent = totalCost ? (profit / totalCost * 100) : 0;
+
+            document.getElementById('stat-total-value').innerText = `NT$ ${formatNum(totalVal)}`;
+            document.getElementById('stat-total-cost').innerText = `NT$ ${formatNum(totalCost)}`;
+            document.getElementById('stat-total-profit').innerText = `${profit >= 0 ? '+' : ''}${formatNum(profit)}`;
+            document.getElementById('stat-total-profit').className = `text-3xl font-black ${profit >= 0 ? 'positive' : 'negative'}`;
+            document.getElementById('stat-total-percent').innerText = `${percent.toFixed(2)}%`;
+            document.getElementById('stat-total-percent').className = `text-lg font-bold ${profit >= 0 ? 'positive' : 'negative'}`;
+            document.getElementById('stat-est-dividend').innerText = `NT$ ${formatNum(totalVal * 0.05)}`;
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('portfolio-body');
+            const totalVal = portfolio.reduce((s, i) => s + (i.shares * i.currentPrice), 0);
+            let filtered = currentFilter === '全部' ? portfolio : portfolio.filter(i => i.category === currentFilter);
+            
+            filtered.sort((a, b) => {
+                let vA = a[sortKey], vB = b[sortKey];
+                if (sortKey === 'ratio') { vA = a.shares * a.currentPrice; vB = b.shares * b.currentPrice; }
+                return vA > vB ? sortOrder : -sortOrder;
+            });
+
+            tbody.innerHTML = filtered.map(item => {
+                const cur = item.shares * item.currentPrice;
+                const cost = item.shares * item.costPrice;
+                const profit = cur - cost;
+                const ratio = totalVal ? (cur / totalVal * 100) : 0;
+                return `
+                    <tr class="hover:bg-slate-800/30 transition border-b border-slate-800/50">
+                        <td class="px-5 py-4">
+                            <input type="text" class="bg-transparent font-bold w-full outline-none focus:text-blue-400" value="${item.name}" onchange="updateItem(${item.id}, 'name', this.value)">
+                            <input type="text" class="bg-transparent text-[10px] text-slate-500 w-full block outline-none" value="${item.code}" onchange="updateItem(${item.id}, 'code', this.value)">
+                        </td>
+                        <td class="px-5 py-4"><input type="number" class="w-20" value="${item.shares}" onchange="updateItem(${item.id}, 'shares', this.value)"></td>
+                        <td class="px-5 py-4"><input type="number" step="0.01" class="w-20 font-bold text-blue-400" value="${item.currentPrice}" onchange="updateItem(${item.id}, 'currentPrice', this.value)"></td>
+                        <td class="px-5 py-4"><input type="number" step="0.01" class="w-20 text-slate-400" value="${item.costPrice}" onchange="updateItem(${item.id}, 'costPrice', this.value)"></td>
+                        <td class="px-5 py-4 font-mono font-bold">${formatNum(cur)}</td>
+                        <td class="px-5 py-4 font-bold ${profit >= 0 ? 'positive' : 'negative'}">${formatNum(profit)}</td>
+                        <td class="px-5 py-4 text-center font-mono text-blue-500/80 text-xs">${ratio.toFixed(1)}%</td>
+                        <td class="px-5 py-4"><input type="text" class="text-[10px] w-20 bg-slate-800/50 rounded px-1 outline-none focus:bg-slate-700" value="${item.category}" onchange="updateItem(${item.id}, 'category', this.value)"></td>
+                        <td class="px-5 py-4 text-center"><button onclick="deleteItem(${item.id})" class="text-slate-600 hover:text-red-500">✕</button></td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderTop10List() {
+            const container = document.getElementById('top-holdings-list');
+            const totalVal = portfolio.reduce((s, i) => s + (i.shares * i.currentPrice), 0);
+            const sorted = [...portfolio].sort((a,b) => (b.shares*b.currentPrice) - (a.shares*a.currentPrice)).slice(0, 10);
+
+            container.innerHTML = sorted.map((item, index) => {
+                const ratio = totalVal ? (item.shares * item.currentPrice / totalVal * 100) : 0;
+                return `
+                    <div class="group">
+                        <div class="flex justify-between items-end mb-2">
+                            <span class="text-sm font-bold text-slate-200">${item.name}</span>
+                            <span class="text-xs font-black text-blue-400 font-mono">${ratio.toFixed(1)}%</span>
+                        </div>
+                        <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden shadow-inner">
+                            <div class="h-full progress-fill bg-gradient-to-r from-blue-600 to-indigo-500" style="width: ${ratio}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderCategoryChart() {
+            const ctx = document.getElementById('categoryChart').getContext('2d');
+            const catSums = {};
+            portfolio.forEach(i => catSums[i.category] = (catSums[i.category] || 0) + (i.shares * i.currentPrice));
+            
+            if (catChart) catChart.destroy();
+            catChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(catSums).filter(k => catSums[k] > 0),
+                    datasets: [{
+                        data: Object.values(catSums).filter(v => v > 0),
+                        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f43f5e'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10 } },
+                        datalabels: {
+                            color: '#fff', font: { weight: 'bold', size: 10 },
+                            formatter: (v, ctx) => {
+                                let sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                                return (v * 100 / sum).toFixed(1) + "%";
+                            }
+                        }
+                    },
+                    cutout: '75%'
+                }
+            });
+        }
+
+        // --- 功能邏輯 ---
+        function updateItem(id, field, value) {
+            const idx = portfolio.findIndex(i => i.id === id);
+            if (idx !== -1) {
+                portfolio[idx][field] = (['name', 'code', 'category'].includes(field)) ? value : parseFloat(value) || 0;
+                updateDashboard();
+            }
+        }
+
+        function deleteItem(id) { if(confirm('刪除持股？')) { portfolio = portfolio.filter(i => i.id !== id); updateDashboard(); } }
+
+        function processPaste() {
+            const text = document.getElementById('paste-area').value.trim();
+            if (!text) return;
+            
+            const rows = text.split('\n');
+            const newData = rows.map(row => {
+                // 支援 Tab 分隔、多空格或逗號
+                const cols = row.split(/\t|\s{2,}/); 
+                if (cols.length < 3) return null;
+                return {
+                    id: Date.now() + Math.random(),
+                    name: cols[0]?.trim() || '未命名',
+                    code: cols[1]?.trim() || '-',
+                    shares: parseFloat(cols[2]?.replace(/,/g, '')) || 0,
+                    currentPrice: parseFloat(cols[3]?.replace(/,/g, '')) || 0,
+                    costPrice: parseFloat(cols[4]?.replace(/,/g, '')) || 0,
+                    category: cols[5]?.trim() || '預設'
+                };
+            }).filter(i => i !== null);
+
+            if (newData.length > 0) {
+                if (confirm(`解析到 ${newData.length} 筆資料，是否覆蓋現有數據？`)) {
+                    portfolio = newData;
+                    updateDashboard();
+                    closeModal('pasteModal');
+                    document.getElementById('paste-area').value = '';
+                }
+            } else { alert('解析失敗，請確保資料欄位順序為：名稱、代碼、股數、現價、成本、分類。'); }
+        }
+
+        function downloadTemplate() {
+            const csv = "名稱,代碼,股數,即時現價,平均成本,分類\n國泰10Y+金融債,00933B,40000,16.16,15.09,金融債";
+            const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "投資清單範本.csv";
+            link.click();
+        }
+
+        function addStock() {
+            portfolio.push({
+                id: Date.now(),
+                name: document.getElementById('in-name').value || '新項目',
+                code: document.getElementById('in-code').value || '-',
+                category: document.getElementById('in-cat').value || '預設',
+                shares: parseFloat(document.getElementById('in-shares').value) || 0,
+                currentPrice: parseFloat(document.getElementById('in-price').value) || 0,
+                costPrice: parseFloat(document.getElementById('in-cost').value) || 0
+            });
+            updateDashboard(); closeModal('addStockModal');
+        }
+
+        function renderTabs() {
+            const container = document.getElementById('tab-container');
+            container.innerHTML = categories.map(cat => `
+                <button onclick="filterTable('${cat}')" class="px-6 py-4 text-xs font-bold whitespace-nowrap transition ${currentFilter === cat ? 'tab-active' : 'text-slate-500 hover:text-slate-300'}">${cat}</button>
+            `).join('');
+        }
+
+        function filterTable(cat) { currentFilter = cat; renderTable(); renderTabs(); }
+        function sortTable(key) { if (sortKey === key) sortOrder *= -1; else { sortKey = key; sortOrder = -1; } renderTable(); }
+        function formatNum(n) { return new Intl.NumberFormat('zh-TW').format(Math.round(n)); }
+        function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+        function exportData() {
+            const blob = new Blob([JSON.stringify(portfolio)], {type:'application/json'});
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `investment_v3_backup.json`; a.click();
+        }
+        function importData(e) {
+            const reader = new FileReader();
+            reader.onload = (ev) => { portfolio = JSON.parse(ev.target.result); updateDashboard(); };
+            reader.readAsText(e.target.files[0]);
+        }
+    </script>
+</body>
+</html>
