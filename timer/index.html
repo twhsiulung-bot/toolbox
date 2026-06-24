@@ -21,7 +21,6 @@
     <div id="root"></div>
 
     <script>
-        // 確保整個網頁與外部 CDN 資源完全載入後，才啟動 React 渲染邏輯，避免執行期錯誤
         window.onload = function() {
             const { useState, useEffect, useRef, createElement: h } = React;
 
@@ -73,6 +72,24 @@
 
                     const savedTheme = localStorage.getItem('zen_timer_theme');
                     if (savedTheme === 'dark') setIsDarkMode(true);
+
+                    // --- 智慧自動判斷邏輯啟動 ---
+                    const now = new Date();
+                    const currentHours = now.getHours();
+                    const currentMinutes = now.getMinutes();
+                    const totalMinutesNow = currentHours * 60 + currentMinutes;
+
+                    let defaultTarget = '12:00'; // 預設值
+                    if (totalMinutesNow < 12 * 60) {
+                        defaultTarget = '12:00'; // 中午以前，瞄準 12:00
+                    } else if (totalMinutesNow >= 12 * 60 && totalMinutesNow < (17 * 60 + 45)) {
+                        defaultTarget = '17:45'; // 中午過後、傍晚以前，瞄準 17:45
+                    } else {
+                        defaultTarget = '12:00'; // 17:45 以後，瞄準明天的 12:00
+                    }
+
+                    // 自動觸發精準計時器
+                    startTimer(defaultTarget, initialHistory);
                 }, []);
 
                 useEffect(() => {
@@ -103,7 +120,6 @@
                 };
 
                 const startTimer = (timeStr, currentHistory = history) => {
-                    initAudioAndNotification();
                     if (timerRef.current) clearInterval(timerRef.current);
                     
                     setActiveLabel(timeStr);
@@ -213,7 +229,7 @@
                                 className: `flex-1 rounded-2xl outline-none border transition-all ${isDarkMode ? 'bg-zinc-800 border-zinc-700 focus:border-blue-500' : 'bg-zinc-100 border-zinc-200 focus:border-blue-500 focus:bg-white'} ${isMini ? 'px-2 py-1 text-xs' : 'px-4 py-3'}`
                             }),
                             h('button', { 
-                                onClick: () => targetTime && startTimer(targetTime),
+                                onClick: () => { initAudioAndNotification(); targetTime && startTimer(targetTime); },
                                 className: `bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-medium transition-all active:scale-95 flex items-center justify-center gap-2 ${isMini ? 'p-2' : 'px-6 py-3'}`
                             }, isActive ? h(IconSquare) : h(IconPlay), !isMini && (isActive ? "重新開始" : "啟動"))
                         ),
